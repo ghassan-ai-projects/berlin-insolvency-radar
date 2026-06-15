@@ -203,8 +203,9 @@ def test_at_0_7_safety_defaults(container, temp_db_path):
     params = LegacyImportInput(
         legacy_db_path=str(temp_db_path),
         dry_run=True,
+        actor="test",
     )
-    result = container.legacy_import.import_legacy_scout(params, actor="test")
+    result = container.legacy_import.import_legacy_scout(params)
 
     assert result.ok is False
     assert any("INVALID_LEGACY_PATH" in err["code"] for err in result.errors)

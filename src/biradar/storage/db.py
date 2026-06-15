@@ -17,6 +17,15 @@ class Database:
     def close(self) -> None:
         self.conn.close()
 
+    def begin(self) -> None:
+        self.conn.execute("BEGIN TRANSACTION")
+
+    def commit(self) -> None:
+        self.conn.execute("COMMIT")
+
+    def rollback(self) -> None:
+        self.conn.execute("ROLLBACK")
+
     def run_migrations(self) -> None:
         """Run database schema migrations."""
         self.conn.execute("""

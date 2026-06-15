@@ -25,7 +25,7 @@ VALID_STATUSES = {
 # Define allowed transitions
 TRANSITION_RULES: dict[str, StatusTransitionRule] = {
     "needs_review": StatusTransitionRule(
-        allowed_from=["raw_candidate", "deduped_candidate"],
+        allowed_from=["raw_candidate", "deduped_candidate", "review_ready"],
         requires_note=False,
         requires_score=False,
     ),
@@ -50,7 +50,12 @@ TRANSITION_RULES: dict[str, StatusTransitionRule] = {
         requires_score=False,
     ),
     "duplicate": StatusTransitionRule(
-        allowed_from=["raw_candidate", "deduped_candidate", "needs_review"],
+        allowed_from=[
+            "raw_candidate",
+            "deduped_candidate",
+            "needs_review",
+            "review_ready",
+        ],
         requires_note=True,
         requires_score=False,
     ),

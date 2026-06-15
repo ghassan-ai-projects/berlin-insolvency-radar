@@ -9,8 +9,17 @@ from mcp.types import TextContent, Tool
 from pydantic import ValidationError
 
 from biradar.mcp.envelope import ResultEnvelope
+from biradar.mcp.schemas import (
+    AuditTrailInput,
+    CreateIssueDraftInput,
+    ExportIssueInput,
+    GetCandidateInput,
+    HealthInput,
+    ImportLegacyScoutInput,
+    ListCandidatesInput,
+    ReviewCandidateInput,
+)
 from biradar.services.container import AppContainer
-from biradar.services.import_legacy import LegacyImportInput
 
 
 def list_radar_tools() -> list[Tool]:
@@ -45,7 +54,23 @@ def list_radar_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "statuses": {"type": "array", "items": {"type": "string"}},
+                    "statuses": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "raw_candidate",
+                                "deduped_candidate",
+                                "needs_review",
+                                "review_ready",
+                                "publish_ready",
+                                "rejected",
+                                "archived",
+                                "duplicate",
+                                "quarantined",
+                            ],
+                        },
+                    },
                     "limit": {"type": "integer", "default": 25},
                     "offset": {"type": "integer", "default": 0},
                 },
@@ -171,6 +196,22 @@ def list_radar_tools() -> list[Tool]:
     ]
 
 
+def validation_error(message: str) -> ResultEnvelope[Any]:
+    """Build a stable validation failure envelope."""
+    return ResultEnvelope(
+        ok=False,
+        errors=[
+            {
+                "code": "VALIDATION_ERROR",
+                "message": message,
+                "retryable": False,
+                "next_action": "Fix the tool arguments and retry.",
+            }
+        ],
+        next_action="Fix the tool arguments and retry.",
+    )
+
+
 def call_radar_tool(
     container: AppContainer, name: str, arguments: dict[str, Any] | None = None
 ) -> ResultEnvelope[Any]:
@@ -178,73 +219,66 @@ def call_radar_tool(
     args = arguments or {}
     try:
         if name == "radar_health":
+            HealthInput(**args)  # Validate (empty)
             return container.health.check()
+
         if name == "radar_import_legacy_scout":
-            params = LegacyImportInput(**args)
-            return container.legacy_import.import_legacy_scout(
-                params, actor=args.get("actor", "system")
-            )
+            params = ImportLegacyScoutInput(**args)
+            return container.legacy_import.import_legacy_scout(params)
+
         if name == "radar_list_candidates":
+            params = ListCandidatesInput(**args)
             return container.candidates.list_candidates(
-                statuses=args.get("statuses"),
-                limit=args.get("limit", 25),
-                offset=args.get("offset", 0),
+                statuses=list(params.statuses) if params.statuses else None,
+                limit=params.limit,
+                offset=params.offset,
             )
+
         if name == "radar_get_candidate":
-            if "candidate_id" not in args:
-                return validation_error("candidate_id is required.")
-            return container.candidates.get_candidate(args["candidate_id"])
+            params = GetCandidateInput(**args)
+            return container.candidates.get_candidate(params.candidate_id)
+
         if name == "radar_review_candidate":
-            missing = [
-                field
-                for field in ("candidate_id", "decision", "reviewer")
-                if field not in args
-            ]
-            if missing:
-                return validation_error(
-                    f"Missing required fields: {', '.join(missing)}."
-                )
+            params = ReviewCandidateInput(**args)
             return container.reviews.review_candidate(
-                candidate_id=args["candidate_id"],
-                decision=args["decision"],
-                reviewer=args["reviewer"],
-                note=args.get("note"),
-                score_input=args.get("score_input"),
+                candidate_id=params.candidate_id,
+                decision=params.decision,
+                reviewer=params.reviewer,
+                note=params.note,
+                score_input=params.score_input.model_dump()
+                if params.score_input
+                else None,
             )
+
         if name == "radar_create_issue_draft":
-            missing = [
-                field
-                for field in ("week", "tier", "candidate_ids", "title")
-                if field not in args
-            ]
-            if missing:
-                return validation_error(
-                    f"Missing required fields: {', '.join(missing)}."
-                )
+            params = CreateIssueDraftInput(**args)
             return container.issues.create_issue_draft(
-                week=args["week"],
-                tier=args["tier"],
-                candidate_ids=args["candidate_ids"],
-                title=args["title"],
-                include_disclaimer=args.get("include_disclaimer", True),
-                actor=args.get("actor", "system"),
+                week=params.week,
+                tier=params.tier,
+                candidate_ids=params.candidate_ids,
+                title=params.title,
+                include_disclaimer=params.include_disclaimer,
+                actor=params.actor,
             )
+
         if name == "radar_export_issue":
-            if "issue_id" not in args:
-                return validation_error("issue_id is required.")
+            params = ExportIssueInput(**args)
             return container.issues.export_issue(
-                issue_id=args["issue_id"],
-                format=args.get("format", "markdown"),
-                actor=args.get("actor", "system"),
+                issue_id=params.issue_id,
+                format=params.format,
+                actor=params.actor,
             )
+
         if name == "radar_audit_trail":
+            params = AuditTrailInput(**args)
             events = container.audit_repo.get_events(
-                entity_type=args.get("entity_type"),
-                entity_id=args.get("entity_id"),
-                actor=args.get("actor"),
-                limit=args.get("limit", 50),
+                entity_type=params.entity_type,
+                entity_id=params.entity_id,
+                actor=params.actor,
+                limit=params.limit,
             )
             return ResultEnvelope(ok=True, data=events)
+
         return ResultEnvelope(
             ok=False,
             errors=[
@@ -262,22 +296,6 @@ def call_radar_tool(
             ok=False,
             errors=[{"code": "INTERNAL_ERROR", "message": str(e), "retryable": True}],
         )
-
-
-def validation_error(message: str) -> ResultEnvelope[Any]:
-    """Build a stable validation failure envelope."""
-    return ResultEnvelope(
-        ok=False,
-        errors=[
-            {
-                "code": "VALIDATION_ERROR",
-                "message": message,
-                "retryable": False,
-                "next_action": "Fix the tool arguments and retry.",
-            }
-        ],
-        next_action="Fix the tool arguments and retry.",
-    )
 
 
 def create_mcp_server(config_dir: Path, db_path: Path) -> Server:

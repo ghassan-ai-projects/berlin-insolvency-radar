@@ -1,13 +1,18 @@
 """Issue service for generating and exporting newsletter drafts."""
 
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from biradar.mcp.envelope import ResultEnvelope
 from biradar.storage.db import Database, compute_content_hash
-from biradar.storage.repository import AuditRepository, CandidateRepository
+from biradar.storage.repository import (
+    AuditRepository,
+    CandidateRepository,
+    EvidenceRepository,
+    IssueRepository,
+    ScoreRepository,
+)
 
 
 class IssueService:
@@ -16,6 +21,9 @@ class IssueService:
         self.export_dir = Path(export_dir)
         self.export_dir.mkdir(parents=True, exist_ok=True)
         self.candidate_repo = CandidateRepository(db)
+        self.evidence_repo = EvidenceRepository(db)
+        self.score_repo = ScoreRepository(db)
+        self.issue_repo = IssueRepository(db)
         self.audit_repo = AuditRepository(db)
 
     def create_issue_draft(
@@ -30,6 +38,18 @@ class IssueService:
         """Create a newsletter issue draft from approved candidates."""
         try:
             if tier not in ("free", "paid"):
+                audit_id = self.audit_repo.log_event(
+                    actor=actor,
+                    action="issue_draft_failed",
+                    entity_type="issue",
+                    entity_id="new",
+                    request_data={
+                        "week": week,
+                        "tier": tier,
+                        "candidate_ids": candidate_ids,
+                    },
+                    result_data={"error": "invalid_tier"},
+                )
                 return ResultEnvelope(
                     ok=False,
                     errors=[
@@ -39,6 +59,7 @@ class IssueService:
                             "retryable": False,
                         }
                     ],
+                    audit_id=audit_id,
                 )
 
             candidates_data = []
@@ -56,28 +77,15 @@ class IssueService:
                     )
                     continue
 
-                # Fetch approved score
-                score_cursor = self.db.conn.execute(
-                    "SELECT * FROM scores WHERE candidate_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1",
-                    [cid],
-                )
-                score_row = score_cursor.fetchone()
-                if not score_row:
+                score = self.score_repo.get_latest_approved_for_candidate(cid)
+                if not score:
                     warnings.append(f"Candidate {cid} has no approved score, skipped.")
                     continue
 
-                score_cols = [desc[0] for desc in score_cursor.description]
-                score = dict(zip(score_cols, score_row))
-
-                # Fetch evidence
-                evidence_cursor = self.db.conn.execute(
-                    "SELECT source_url, field, value FROM evidence_items WHERE candidate_id = ?",
-                    [cid],
-                )
-                evidence_cols = [desc[0] for desc in evidence_cursor.description]
-                evidence = [
-                    dict(zip(evidence_cols, row)) for row in evidence_cursor.fetchall()
-                ]
+                evidence = self.evidence_repo.get_for_candidate(cid)
+                if not evidence:
+                    warnings.append(f"Candidate {cid} has no evidence, skipped.")
+                    continue
 
                 # Suppress admin contact in free tier
                 filtered_evidence = []
@@ -85,6 +93,12 @@ class IssueService:
                     if tier == "free" and "admin" in ev["field"].lower():
                         continue
                     filtered_evidence.append(ev)
+
+                if not filtered_evidence:
+                    warnings.append(
+                        f"Candidate {cid} has no publishable evidence for {tier} tier, skipped."
+                    )
+                    continue
 
                 candidates_data.append(
                     {
@@ -95,6 +109,21 @@ class IssueService:
                 )
 
             if not candidates_data:
+                audit_id = self.audit_repo.log_event(
+                    actor=actor,
+                    action="issue_draft_failed",
+                    entity_type="issue",
+                    entity_id="new",
+                    request_data={
+                        "week": week,
+                        "tier": tier,
+                        "candidate_ids": candidate_ids,
+                    },
+                    result_data={
+                        "error": "no_valid_candidates",
+                        "warnings": warnings,
+                    },
+                )
                 return ResultEnvelope(
                     ok=False,
                     warnings=warnings,
@@ -105,6 +134,7 @@ class IssueService:
                             "retryable": False,
                         }
                     ],
+                    audit_id=audit_id,
                 )
 
             # Generate Markdown
@@ -150,31 +180,25 @@ class IssueService:
 
             draft_markdown = "\n".join(md_lines)
             issue_id = f"issue_{uuid.uuid4().hex}"
-            now_str = datetime.now(UTC).isoformat()
 
             # Persist draft
-            self.db.conn.execute(
-                """
-                INSERT INTO issues 
-                (issue_id, week, tier, status, title, draft_markdown, created_by, created_at)
-                VALUES (?, ?, ?, 'draft', ?, ?, ?, ?)
-                """,
-                [issue_id, week, tier, title, draft_markdown, actor, now_str],
+            self.issue_repo.create_issue(
+                issue_id=issue_id,
+                week=week,
+                tier=tier,
+                title=title,
+                draft_markdown=draft_markdown,
+                created_by=actor,
             )
 
             # Link candidates to issue
             for idx, item in enumerate(candidates_data, start=1):
-                self.db.conn.execute(
-                    """
-                    INSERT INTO issue_candidates (issue_id, candidate_id, rank, section, included_score_id)
-                    VALUES (?, ?, ?, 'opportunity', ?)
-                    """,
-                    [
-                        issue_id,
-                        item["candidate"]["candidate_id"],
-                        idx,
-                        item["score"]["score_id"],
-                    ],
+                self.issue_repo.link_candidate(
+                    issue_id=issue_id,
+                    candidate_id=item["candidate"]["candidate_id"],
+                    rank=idx,
+                    section="opportunity",
+                    included_score_id=item["score"]["score_id"],
                 )
 
             # Audit
@@ -227,6 +251,14 @@ class IssueService:
         """Export an issue draft to a local file."""
         try:
             if format != "markdown":
+                audit_id = self.audit_repo.log_event(
+                    actor=actor,
+                    action="issue_export_failed",
+                    entity_type="issue",
+                    entity_id=issue_id,
+                    request_data={"format": format},
+                    result_data={"error": "unsupported_format"},
+                )
                 return ResultEnvelope(
                     ok=False,
                     errors=[
@@ -236,13 +268,19 @@ class IssueService:
                             "retryable": False,
                         }
                     ],
+                    audit_id=audit_id,
                 )
 
-            cursor = self.db.conn.execute(
-                "SELECT * FROM issues WHERE issue_id = ? LIMIT 1", [issue_id]
-            )
-            row = cursor.fetchone()
-            if not row:
+            issue = self.issue_repo.get_issue(issue_id)
+            if not issue:
+                audit_id = self.audit_repo.log_event(
+                    actor=actor,
+                    action="issue_export_failed",
+                    entity_type="issue",
+                    entity_id=issue_id,
+                    request_data={"format": format},
+                    result_data={"error": "issue_not_found"},
+                )
                 return ResultEnvelope(
                     ok=False,
                     errors=[
@@ -252,12 +290,18 @@ class IssueService:
                             "retryable": False,
                         }
                     ],
+                    audit_id=audit_id,
                 )
 
-            cols = [desc[0] for desc in cursor.description]
-            issue = dict(zip(cols, row))
-
             if issue["status"] != "draft":
+                audit_id = self.audit_repo.log_event(
+                    actor=actor,
+                    action="issue_export_failed",
+                    entity_type="issue",
+                    entity_id=issue_id,
+                    request_data={"format": format},
+                    result_data={"error": "invalid_status", "status": issue["status"]},
+                )
                 return ResultEnvelope(
                     ok=False,
                     errors=[
@@ -267,6 +311,7 @@ class IssueService:
                             "retryable": False,
                         }
                     ],
+                    audit_id=audit_id,
                 )
 
             # Generate filename
@@ -280,10 +325,9 @@ class IssueService:
             with open(export_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            now_str = datetime.now(UTC).isoformat()
-            self.db.conn.execute(
-                "UPDATE issues SET status = 'exported', exported_at = ?, export_path = ? WHERE issue_id = ?",
-                [now_str, str(export_path), issue_id],
+            # Update issue status
+            self.issue_repo.mark_exported(
+                issue_id=issue_id, export_path=str(export_path)
             )
 
             # Audit
@@ -306,7 +350,7 @@ class IssueService:
                     "sha256": content_hash,
                 },
                 audit_id=audit_id,
-                next_action="Draft exported successfully. Review in beehiiv UI (manual step).",
+                next_action="Draft exported successfully. Review the local Markdown file before any manual publishing.",
             )
 
         except Exception as e:

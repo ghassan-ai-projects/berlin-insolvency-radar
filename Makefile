@@ -1,8 +1,8 @@
-.PHONY: check phase0-check format lint typecheck test test-integration test-acceptance clean
+.PHONY: check phase0-check phase1-check format lint typecheck test test-integration test-acceptance clean
 
 check: phase0-check
-
 phase0-check: format lint typecheck test test-acceptance
+phase1-check: format lint typecheck test test-acceptance
 
 format:
 	ruff format src/biradar tests
