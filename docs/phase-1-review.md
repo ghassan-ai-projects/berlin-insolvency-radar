@@ -31,7 +31,7 @@ Verification passed locally:
 uv run make phase1-check
 ```
 
-This ran Ruff format, Ruff lint, Pyright, 12 unit tests, and 20 acceptance tests successfully. Acceptance coverage reports 91 percent line coverage across `src/biradar`.
+This ran Ruff format, Ruff lint, Pyright, 12 unit tests, 20 acceptance tests, and 1 end-to-end workflow test successfully. Acceptance coverage reports 91 percent line coverage across `src/biradar`.
 
 ---
 
@@ -62,7 +62,7 @@ The product is now ready for fixture-backed editorial use: import records, inspe
 | Issue draft/export | Complete | Drafts include only publish-ready candidates with approved scores and evidence. Export is local Markdown only. |
 | Audit trail | Complete | Successful and failed state-changing attempts are audited once they reach application logic. |
 | MCP contracts | Complete | Tool inputs use Pydantic validation with strict status/tier/format/decision constraints and stable envelopes. |
-| Test quality | Complete | Acceptance tests now assert the behavior behind each Phase 1 gate, including rollback and no-evidence blocking. |
+| Test quality | Complete | Acceptance tests now assert the behavior behind each Phase 1 gate, including rollback and no-evidence blocking. E2E verifies the complete MCP workflow. |
 
 ---
 
@@ -83,6 +83,8 @@ The product is now ready for fixture-backed editorial use: import records, inspe
 - Tightened MCP schemas for candidate statuses and nested score input.
 - Expanded fixture coverage with a clean SE record and deterministic `scraped_at` handling.
 - Strengthened acceptance tests for dry-run safety, idempotency, rollback, malformed-row warnings, review policy, no-evidence blocking, local export, and audit behavior.
+- Added an end-to-end MCP workflow test that runs health, dry-run import, real import, list/detail, review, draft creation, Markdown export, audit inspection, and final health verification.
+- Fixed health reporting so the latest successful source run is detected from the actual Phase 1 legacy import path.
 
 ---
 

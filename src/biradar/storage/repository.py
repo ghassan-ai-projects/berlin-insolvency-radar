@@ -321,6 +321,21 @@ class SourceRunRepository:
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
 
+    def get_latest_successful_run(self) -> dict[str, Any] | None:
+        """Get the most recent successful source run across all sources."""
+        cursor = self.db.conn.execute(
+            """
+            SELECT * FROM source_runs
+            WHERE status = 'success'
+            ORDER BY completed_at DESC, started_at DESC LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        columns = [desc[0] for desc in cursor.description]
+        return dict(zip(columns, row))
+
     def create_run(
         self,
         source_run_id: str,

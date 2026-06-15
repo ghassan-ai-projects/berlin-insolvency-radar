@@ -19,7 +19,7 @@ class HealthService:
         """Check application health and readiness."""
         try:
             counts = self.candidate_repo.get_counts_by_status()
-            latest_run = self.source_repo.get_latest_run("official_insolvency_berlin")
+            latest_run = self.source_repo.get_latest_successful_run()
             schema_version = self.db.get_schema_version()
 
             next_action = (
@@ -39,7 +39,7 @@ class HealthService:
                 },
                 "counts": counts,
                 "last_successful_source_run": latest_run["started_at"]
-                if latest_run and latest_run["status"] == "success"
+                if latest_run
                 else None,
                 "stale_sources": [],
                 "next_action": next_action,

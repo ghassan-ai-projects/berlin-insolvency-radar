@@ -1,8 +1,8 @@
-.PHONY: check phase0-check phase1-check format lint typecheck test test-integration test-acceptance clean
+.PHONY: check phase0-check phase1-check format lint typecheck test test-integration test-acceptance test-e2e clean
 
 check: phase0-check
 phase0-check: format lint typecheck test test-acceptance
-phase1-check: format lint typecheck test test-acceptance
+phase1-check: format lint typecheck test test-acceptance test-e2e
 
 format:
 	ruff format src/biradar tests
@@ -21,6 +21,9 @@ test-integration:
 
 test-acceptance:
 	pytest tests/acceptance --cov=src/biradar --cov-report=term-missing
+
+test-e2e:
+	pytest tests/e2e --cov=src/biradar --cov-report=term-missing
 
 clean:
 	rm -rf .pytest_cache
