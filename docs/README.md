@@ -1,6 +1,6 @@
 # Berlin Insolvency Opportunity Radar
 
-**Status:** Research Phase (pre-build, pre-launch)
+**Status:** Research validated; MCP-first Phase 0 ready
 **Last Updated:** 2026-06-15
 
 ## Concept
@@ -51,11 +51,14 @@ Yet there's no curated, Berlin/Germany-focused weekly opportunity newsletter. Ex
 
 ### Launch Strategy
 - Write 3 manual issues first to prove concept + scoring system
-- No automation until demand is validated
+- Build only the smallest MCP-first production core before deeper automation
 - Launch free, add paid tier after building audience
 
 ### Technical
-- Don't build the scraper yet — use Insolvenz-Radar API or manual scanning for test phase
+- v0 is MCP-first: DuckDB-backed local database, LangGraph workflow, read-only legacy import, manual input, review, scoring, draft/export
+- Do not run the old `insolvency-scout` pipeline and the new pipeline at the same time
+- Build the fresh official scraper only after the v0 MCP core is stable
+- Use Insolvenz-Radar/InsolvenzIndex as validation or fallback, not the default engine
 - Scoring dimensions: company value, asset quality, sector attractiveness, speed of action, legal risk
 
 ### Open-Source Boundary (Phase 4+)
@@ -79,6 +82,12 @@ Yet there's no curated, Berlin/Germany-focused weekly opportunity newsletter. Ex
 | `strategy/execution-plan.md` | Step-by-step launch plan |
 | `strategy/scoring-model.md` | Opportunity scoring framework |
 | `strategy/newsletter-template.md` | Issue format and structure |
+| `strategy/application-architecture.md` | Best-in-class application architecture and engineering standards |
+| `strategy/testing-and-coding-standards.md` | Test strategy, coding standards, review checklist, and CI gates |
+| `strategy/phase-acceptance-tests.md` | Phase 0/1 acceptance tests and definition of done |
+| `strategy/agentic-implementation-plan.md` | Critical LangGraph/LangChain implementation plan |
+| `strategy/data-source-strategy.md` | Production data-source and acquisition strategy |
+| `strategy/mcp-interface.md` | MCP-first tool contract for agent interaction |
 
 ## Sources
 

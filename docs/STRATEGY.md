@@ -20,9 +20,10 @@ German corporate insolvencies are at a 10-year high and rising (24,064 in 2025, 
 
 1. **Legal first:** One session with German media lawyer (skip consumer filings → eliminates GDPR risk)
 2. **3 manual issues on beehiiv:** Prove concept, refine scoring. beehiiv chosen over Substack for GDPR compliance (custom cookie consent, mandatory double opt-in, 0% revenue cut vs Substack's 10%).
-3. **Automate only after demand is validated** (100+ subscribers, 40%+ open rate)
-4. **No scraper initially** — Insolvenz-Radar free tier or manual browsing
-5. **Add paid tier at Month 2** when the format is proven
+3. **MCP-first v0 before automation:** DuckDB-backed local database, LangGraph workflow, read-only legacy import, manual input, review, scoring, draft/export.
+4. **No parallel pipelines:** the old `insolvency-scout` project is a reference and backfill source, not a second production system.
+5. **Fresh scraper after the core is stable:** build the official-portal adapter in this repo only after v0 is pleasant to use.
+6. **Add paid tier at Month 2** when the format is proven.
 
 ## Brand Position
 
@@ -40,9 +41,15 @@ German corporate insolvencies are at a 10-year high and rising (24,064 in 2025, 
 | `strategy/execution-plan.md` | Full phased launch plan |
 | `strategy/scoring-model.md` | Opportunity scoring framework |
 | `strategy/newsletter-template.md` | Issue format and structure |
+| `strategy/application-architecture.md` | Best-in-class application architecture and engineering standards |
+| `strategy/testing-and-coding-standards.md` | Test strategy, coding standards, review checklist, and CI gates |
+| `strategy/phase-acceptance-tests.md` | Phase 0/1 acceptance tests and definition of done |
+| `strategy/agentic-implementation-plan.md` | LangGraph/LangChain architecture and build plan |
+| `strategy/data-source-strategy.md` | Source acquisition, enrichment, migration, and vendor strategy |
+| `strategy/mcp-interface.md` | MCP-first tool contract for OpenClaw and agents |
 
 ## Current Status
 
-**Phase 0: Foundation** — Legal + content model definition in progress.
+**Phase 0: Foundation / MCP v0** — Legal + content model definition in progress; coding should start with the smallest MCP-first core.
 
-Next action: Read all project files to get up to speed. Legal consult → write first issue.
+Next action: Read `HANDOFF-TO-CODING-AGENT.md`, `strategy/application-architecture.md`, `strategy/testing-and-coding-standards.md`, and `strategy/phase-acceptance-tests.md`, then implement MCP v0. Legal consult and first issue remain required before public launch.

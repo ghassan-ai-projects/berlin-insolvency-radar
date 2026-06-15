@@ -1,0 +1,19 @@
+sources:
+  legacy_insolvency_scout:
+    kind: legacy_duckdb
+    name: "Legacy Insolvency Scout"
+    enabled: false
+    trust_level: "C"
+    mode: read_only
+    path: "/Users/ghassan/my-projects/insolvency-scout/data/insolvency_scout.duckdb"
+    
+  official_insolvency_berlin:
+    kind: official_jsf
+    name: "Official Insolvency Portal Berlin"
+    enabled: false # To be enabled in Phase 2
+    trust_level: "A"
+    params:
+      base_url: "https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf"
+      bundesland: "Berlin"
+      date_window_days: 1
+      backfill_days_on_first_run: 14

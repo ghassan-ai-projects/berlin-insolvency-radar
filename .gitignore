@@ -216,3 +216,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Berlin Insolvency Radar local data
+data/*
+!data/.gitkeep
+!data/manual/
+!data/manual/.gitkeep
+!data/exports/
+!data/exports/.gitkeep
+!data/fixtures/
+!data/fixtures/.gitkeep
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+data/**/*.db
+data/**/*.sqlite
+data/**/*.sqlite3
+data/**/*.parquet
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.xls
+
+# Local exports and legacy snapshots may contain production-derived data
+data/exports/**
+!data/exports/.gitkeep
+data/legacy_snapshots/**
+tests/fixtures/**/*.duckdb

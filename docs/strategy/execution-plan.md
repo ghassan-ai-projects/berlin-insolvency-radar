@@ -17,6 +17,12 @@
 - [ ] Write 3 sample manual issues to validate format
 - [ ] Create issue template
 
+### Technical Foundation
+- [ ] Build MCP v0 only: health, legacy import, candidate list/detail, review, draft/export, audit
+- [ ] Use LangGraph from v0 to coordinate import, review, scoring, and draft/export
+- [ ] Use a repo-owned DuckDB database and read-only legacy DuckDB import
+- [ ] Keep the old `insolvency-scout` jobs disabled; do not run parallel production pipelines
+
 ### Platform
 - [ ] Set up **beehiiv** account (not Substack — better GDPR compliance, 0% revenue cut, smart double opt-in with 48h nudge)
 - [ ] Configure custom cookie consent banner for EU compliance
@@ -51,8 +57,9 @@
 ## Phase 2: Automate (Weeks 6–10)
 
 ### Technical
-- [ ] Sign up for Insolvenz-Radar paid API (~€29–49/mo)
-- [ ] Build lightweight pipeline: API → filter → score → draft
+- [ ] Build fresh official-portal scraper in this repo, after MCP v0 is stable
+- [ ] Keep source-run logs, parse errors, retries, and idempotent dedupe
+- [ ] Evaluate Insolvenz-Radar/InsolvenzIndex as fallback or enrichment, not the default first engine
 - [ ] Use AI-assisted editing (not fully automated — human review)
 - [ ] Set up beehiiv paid tier
 
@@ -73,7 +80,7 @@
 
 ### Premium Tier
 - [ ] Launch Premium: €49/mo, custom alerts by sector/criteria
-- [ ] Add real-time notification for high-value opportunities
+- [ ] Add reviewed high-signal notifications for high-value opportunities after legal review
 - [ ] Offer one-off company deep dives (€99–299 each)
 
 ### Distribution

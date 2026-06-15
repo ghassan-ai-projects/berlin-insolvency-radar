@@ -1,0 +1,12 @@
+version: "v1"
+weights:
+  company_value: 0.25
+  asset_quality: 0.20
+  sector_attractiveness: 0.20
+  speed_of_action: 0.20
+  legal_risk: -0.15
+thresholds:
+  hot: 3.0
+  solid: 2.5
+  interesting: 2.0
+  # anything below interesting is low priority

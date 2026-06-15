@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15
 **Purpose:** Complete project brief for a coding agent to build the newsletter pipeline.
-**Status:** Research validated, pre-launch. Ready to build Phase 0–1.
+**Status:** Research validated, pre-launch. Ready to build MCP v0 / Phase 0–1.
 
 ---
 
@@ -55,17 +55,15 @@ A curated weekly intelligence newsletter that scans German insolvency filings, r
 - **Cost:** €0
 - **Why:** Validate concept before any automation
 
-### Phase 2: Automated Pipeline
-- **Source:** Insolvenz-Radar paid API (~€29–49/mo)
-- **Features:** REST API, JSON, HTTP-Push for real-time alerts, up to 100 items/page
-- **Data depth (paid):** Company name, filing date, court, full notice text, financial metrics, purpose, industry, administrator details
+### Phase 2: Repo-Owned Automated Pipeline
+- **Primary source:** fresh official-portal adapter for `neu.insolvenzbekanntmachungen.de`
+- **Why:** canonical source, lower vendor dependency, better evidence provenance
+- **Required standards:** source-run logging, saved evidence, parse errors, retries, idempotent dedupe
 
-### Phase 3+: Custom Scraper (if scaling)
-- **Target:** neu.insolvenzbekanntmachungen.de (2018+, modern interface)
-- **Reference scrapers:**
-  - `insolvenz-scraper` by savas-grossmann (neu portal)
-  - `InsolvencyAnnouncementsGer` by NDelventhal/Gassen (alt portal, legacy)
-- **Also consider:** InsolvenzIndex API, OpenRegister API for enrichment
+### Phase 3+: Commercial Fallback And Enrichment
+- **Discovery fallback:** Insolvenz-Radar or InsolvenzIndex if official coverage or reliability is not good enough
+- **Enrichment:** OpenRegister, Unternehmensregister/Bundesanzeiger, Handelsregister, company website, GitHub where appropriate
+- **Rule:** paid APIs can improve coverage and enrichment, but they should not replace the repo-owned product state
 
 ### Portal Technical Note
 The German insolvency register has two databases:
@@ -159,9 +157,10 @@ Chosen over Substack and Ghost:
 - [ ] Direct DM 20–30 M&A professionals
 - [ ] Target: 100+ subscribers, 40%+ open rate
 
-### Phase 2: Automate (Weeks 6–10) — Build This Now
-- [ ] Insolvenz-Radar paid API integration (~€29–49/mo)
-- [ ] Pipeline: API → filter by corporate only → score → generate issue draft
+### Phase 2: Automate (Weeks 6–10) — Build After MCP v0
+- [ ] Fresh official-portal scraper in this repo
+- [ ] Source-run logging, retries, parse errors, idempotent dedupe
+- [ ] Evaluate Insolvenz-Radar/InsolvenzIndex as fallback or enrichment, not the default engine
 - [ ] AI-assisted editing (not fully automated)
 - [ ] beehiiv paid tier activated (€19/mo)
 - [ ] Archive access for paid subscribers
@@ -213,15 +212,75 @@ Chosen over Substack and Ghost:
 
 ## 13. Quick Start for Coding Agent
 
-### Immediate Build Tasks (Phase 0–1)
-1. **Scoring engine** — implement `opportunity_score(company_value, asset_quality, sector_attractiveness, speed_of_action, legal_risk)` with the weighted formula above. Configurable weights for future tuning.
-2. **Data source module** — abstracted interface. Start with manual entry (JSON/csv). Prep for Insolvenz-Radar API integration.
-3. **Issue generator** — take scored companies, format into newsletter template (markdown). Output ready to paste into beehiiv.
-4. **Data enrichment helpers** — parse insolvenzbekanntmachungen.de notice text, extract entity name, sector, proceed-to-date.
-5. **Filter module** — strip consumer insolvencies, keep only corporate filings.
+### Agentic Architecture Guidance
+
+Use LangGraph from v0 for orchestration/checkpointing, and LangChain for structured extraction, tool use, and drafting. Do **not** make this a fully autonomous publishing agent. The safe architecture is:
+
+```
+agents suggest -> deterministic code verifies -> human approves -> audit log persists
+```
+
+Keep these deterministic:
+- Corporate-only compliance filter
+- Scoring formula and thresholds
+- Deduplication
+- Data retention/deletion
+- Export/publishing gates
+
+Use agents for:
+- Notice-text extraction into structured fields
+- Enrichment research with cited evidence
+- Opportunity thesis drafting
+- Unsupported-claim and compliance review
+- Newsletter draft generation
+
+See `strategy/agentic-implementation-plan.md` for the expanded implementation plan.
+See `strategy/application-architecture.md` for the target application architecture and engineering standards.
+See `strategy/testing-and-coding-standards.md` for the required test strategy, coding standards, review checklist, and CI gates.
+See `strategy/phase-acceptance-tests.md` for Phase 0/1 acceptance tests and the definition of done.
+See `strategy/data-source-strategy.md` for the source acquisition strategy.
+See `strategy/mcp-interface.md` for the MCP-first tool contract.
+
+### Existing Scraper / Pipeline
+
+There is already a separate implementation at:
+
+`/Users/ghassan/my-projects/insolvency-scout`
+
+Use it as a reference implementation and legacy data source, not as code to copy into this repo. Local inspection on 2026-06-15 found:
+- Scraper for `neu.insolvenzbekanntmachungen.de` in `src/insolvency_scout/sources/insolvenzbekanntmachungen.py`
+- DuckDB database at `data/insolvency_scout.duckdb`
+- MCP server in `src/insolvency_scout/server.py`
+- Daily runner in `scripts/run-pipeline.sh`
+- OpenClaw launchd service is running, but user `crontab` is empty
+- OpenClaw internal cron currently has only a disabled `insolvency-scout-progress` job matching this project
+- Latest observed DB scrape: `2026-06-10T08:00:04`
+- DB state: 311 filings, 260 scores, 63 distinct company/date pairs
+
+Critical caveat: the existing scraper feed has duplicates and weak run logging. The new repo should own the production implementation. Treat the legacy DuckDB as production data owned by the old project: open it read-only, never migrate it, never use it as this repo's working database, and clone it to a timestamped snapshot if experimentation is needed. Then disable old jobs so only one production pipeline runs.
+
+### Immediate Build Tasks (MCP v0 / Phase 0–1)
+1. **MCP server skeleton** — expose only v0 tools first: `radar_health`, `radar_import_legacy_scout`, `radar_list_candidates`, `radar_get_candidate`, `radar_review_candidate`, `radar_create_issue_draft`, `radar_export_issue`, `radar_audit_trail`.
+2. **Scoring engine** — implement `opportunity_score(company_value, asset_quality, sector_attractiveness, speed_of_action, legal_risk)` with the weighted formula above. Configurable weights for future tuning.
+3. **Data source module** — abstracted interface. Start with a new repo-owned DuckDB storage model, manual JSON/CSV input, and a read-only `insolvency-scout` DuckDB import adapter. Prep for a fresh official-portal scraper in this repo; Insolvenz-Radar remains a secondary source.
+4. **Issue generator** — take scored companies, format into newsletter template (markdown). Output ready to paste into beehiiv.
+5. **Data enrichment helpers** — parse insolvenzbekanntmachungen.de notice text, extract entity name, sector, proceed-to-date.
+6. **Filter module** — strip consumer insolvencies, keep only corporate filings.
+
+### v0 Definition Of Done
+- `radar_health` returns database status, candidate counts, stale-source warnings, and a clear next action for OpenClaw.
+- `radar_import_legacy_scout` supports dry-run and real import without mutating the legacy DuckDB.
+- Repo-owned DuckDB at `data/radar.duckdb` stores candidates, evidence, scores, reviews, issues, and audit events.
+- Legacy DB imports prove the source file size, modified time, and content hash are unchanged.
+- LangGraph coordinates the review/draft workflow with deterministic nodes for filter, dedupe, scoring, audit, and export.
+- Candidate lists are deduplicated and default to records needing review.
+- `radar_review_candidate` writes status, optional approved score, reviewer note, and audit event in one call.
+- Issue draft/export creates local Markdown only; no beehiiv publishing or external email send.
+- Consumer/personal records are rejected or quarantined before candidate review.
+- Tests cover scoring, corporate filter, dedupe, legacy import, draft export, and audit writes.
 
 ### Where to Find Everything
-All files in `~/ai-projects/projects/berlin-insolvency-opportunity-radar/`:
+All files in `/Users/ghassan/my-projects/berlin-insolvency-radar/`:
 - `STRATEGY.md` — One-page strategy summary
 - `README.md` — Full project overview
 - `research/market.md` — Competitor analysis, trends
@@ -231,4 +290,9 @@ All files in `~/ai-projects/projects/berlin-insolvency-opportunity-radar/`:
 - `strategy/execution-plan.md` — Full launch plan
 - `strategy/scoring-model.md` — Scoring framework
 - `strategy/newsletter-template.md` — Issue format
+- `strategy/application-architecture.md` — Application architecture, DuckDB schema, LangGraph workflows, and quality standards
+- `strategy/testing-and-coding-standards.md` — Test strategy, coding standards, review checklist, and CI gates
+- `strategy/phase-acceptance-tests.md` — Phase 0/1 acceptance tests and definition of done
+- `strategy/data-source-strategy.md` — Source acquisition, enrichment, migration, and vendor strategy
+- `strategy/mcp-interface.md` — MCP tool contract for OpenClaw/agent interaction
 - **This file** `HANDOFF-TO-CODING-AGENT.md` — Everything in one place
