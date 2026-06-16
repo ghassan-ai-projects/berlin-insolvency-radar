@@ -7,6 +7,7 @@ and submitting the real `frm_suche` search form.
 
 import asyncio
 import hashlib
+import json
 import re
 import uuid
 import xml.etree.ElementTree as ET
@@ -187,7 +188,7 @@ class OfficialPortalAdapter:
                 records_imported=records_imported,
                 duplicates=duplicates,
                 rejected=rejected,
-                error_json=str(errors) if errors else None,
+                error_json=json.dumps(errors) if errors else None,
             )
 
         return {
@@ -329,7 +330,7 @@ class OfficialPortalAdapter:
                 records_imported=records_imported,
                 duplicates=duplicates,
                 rejected=rejected,
-                error_json=str(errors) if errors else None,
+                error_json=json.dumps(errors) if errors else None,
             )
 
         logger.info(

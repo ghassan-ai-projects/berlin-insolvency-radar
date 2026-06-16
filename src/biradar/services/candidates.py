@@ -1,5 +1,6 @@
 """Candidate service for querying and listing candidates."""
 
+import logging
 from typing import Any
 
 from biradar.mcp.envelope import ResultEnvelope
@@ -11,6 +12,8 @@ from biradar.storage.repository import (
     ReviewRepository,
     ScoreRepository,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CandidateService:
@@ -60,16 +63,11 @@ class CandidateService:
                     c["next_action"] = "Candidate is ready for issue inclusion."
 
             return ResultEnvelope(ok=True, data=candidates)
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to list candidates")
             return ResultEnvelope(
                 ok=False,
-                errors=[
-                    {
-                        "code": "LIST_CANDIDATES_FAILED",
-                        "message": str(e),
-                        "retryable": True,
-                    }
-                ],
+                errors=[{"code": "LIST_CANDIDATES_FAILED", "message": "Internal error listing candidates.", "retryable": True}],
             )
 
     def get_candidate(self, candidate_id: str) -> ResultEnvelope[dict[str, Any]]:
@@ -92,14 +90,9 @@ class CandidateService:
             data = self.candidate_repo.get_detail(candidate_id)
 
             return ResultEnvelope(ok=True, data=data)
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to get candidate %s", candidate_id)
             return ResultEnvelope(
                 ok=False,
-                errors=[
-                    {
-                        "code": "GET_CANDIDATE_FAILED",
-                        "message": str(e),
-                        "retryable": True,
-                    }
-                ],
+                errors=[{"code": "GET_CANDIDATE_FAILED", "message": "Internal error retrieving candidate.", "retryable": True}],
             )

@@ -1,6 +1,5 @@
 """Typed configuration loading for the application."""
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +9,9 @@ from pydantic import BaseModel, Field, model_validator
 
 class Settings(BaseModel):
     """Application runtime settings."""
-    project_root: Path = Field(default=Path(os.getcwd()))
-    
+    project_root: Path = Field(default=Path(__file__).resolve().parent.parent.parent.parent)
+    scoring: Any = Field(default_factory=dict)
+
     @property
     def data_dir(self) -> Path:
         return self.project_root / "data"

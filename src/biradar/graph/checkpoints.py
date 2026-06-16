@@ -26,6 +26,8 @@ class CheckpointManager:
         if SqliteSaver is not None and sqlite3 is not None and self.db_path is not None:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+            self._conn.execute("PRAGMA journal_mode=WAL;")
+            self.db_path.chmod(0o600)
             self.saver = SqliteSaver(self._conn)
             logger.info("Using SQLite LangGraph checkpoint saver", extra={"path": str(self.db_path)})
         else:

@@ -23,9 +23,8 @@ def ingest_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     """Initial node: fetches raw records from the source."""
     logger.info("Executing ingest node")
     # In a real run, this would call the OfficialPortalAdapter
-    # For now, we assume raw_records are populated by the caller
-    state["status"] = "normalize"
-    return state
+    state["current_step"] = "normalize"
+    return {**state}
 
 
 def normalize_and_compliance_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -50,8 +49,8 @@ def normalize_and_compliance_node(state: Phase2WorkflowState) -> Phase2WorkflowS
             valid_candidates.append({**record, "status": "quarantined", "compliance_reason": reason})
             
     state["candidates"] = valid_candidates
-    state["status"] = "dedupe"
-    return state
+    state["current_step"] = "dedupe"
+    return {**state}
 
 
 def dedupe_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -59,8 +58,8 @@ def dedupe_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     logger.info("Executing dedupe node")
     deduped = deduplicate_candidates(state["candidates"])
     state["candidates"] = deduped
-    state["status"] = "extraction"
-    return state
+    state["current_step"] = "extraction"
+    return {**state}
 
 
 def extraction_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -124,8 +123,8 @@ def enrichment_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             "data": {"sector": "Unknown"},
         }
     state["enrichment_results"] = enrichment_results
-    state["status"] = "scoring"
-    return state
+    state["current_step"] = "scoring"
+    return {**state}
 
 
 def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -134,7 +133,7 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     scores = {}
     settings = get_settings()
     config = load_config(settings.project_root / "config")
-    
+
     for candidate in state["candidates"]:
         if candidate["status"] == "quarantined":
             continue
@@ -180,8 +179,8 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             scores[cid] = {"status": "failed", "error": str(e)}
             
     state["scores"] = scores
-    state["status"] = "risk_review"
-    return state
+    state["current_step"] = "risk_review"
+    return {**state}
 
 
 def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -335,7 +334,7 @@ def draft_assembly_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         "candidates": export_ready_candidates,
     }
     state["current_step"] = "export"
-    return state
+    return {**state}
 
 
 def export_node(state: Phase2WorkflowState) -> Phase2WorkflowState:

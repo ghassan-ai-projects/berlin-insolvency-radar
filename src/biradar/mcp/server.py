@@ -1,6 +1,7 @@
 """MCP Server for Berlin Insolvency Radar."""
 
 import json
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from biradar.mcp.schemas import (
 )
 from biradar.services.phase2_pipeline import run_phase2_pipeline
 from biradar.services.container import AppContainer
+
+logger = logging.getLogger(__name__)
 
 
 def list_radar_tools() -> list[Tool]:
@@ -357,10 +360,11 @@ def call_radar_tool(
         )
     except ValidationError as e:
         return validation_error(str(e))
-    except Exception as e:
+    except Exception:
+        logger.exception("Unhandled error in radar tool dispatch", extra={"tool": name})
         return ResultEnvelope(
             ok=False,
-            errors=[{"code": "INTERNAL_ERROR", "message": str(e), "retryable": True}],
+            errors=[{"code": "INTERNAL_ERROR", "message": "An internal error occurred.", "retryable": True}],
         )
 
 

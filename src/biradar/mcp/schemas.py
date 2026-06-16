@@ -1,9 +1,10 @@
 """Pydantic input models for MCP v0 tools."""
 
+import re
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from biradar.domain.scoring import ScoreInput
 
@@ -72,6 +73,13 @@ class CreateIssueDraftInput(BaseModel):
     title: str
     include_disclaimer: bool = True
     actor: str = "system"
+
+    @field_validator("week")
+    @classmethod
+    def validate_week(cls, v: str) -> str:
+        if not re.match(r"^\d{4}-W\d{2}$", v):
+            raise ValueError("week must match format 'YYYY-W##' (e.g., '2026-W25')")
+        return v
 
 
 class ExportIssueInput(BaseModel):

@@ -1,11 +1,14 @@
 """Health service for application status checks."""
 
+import logging
 from typing import Any
 
 from biradar.config.settings import AppConfig
 from biradar.mcp.envelope import ResultEnvelope
 from biradar.storage.db import Database
 from biradar.storage.repository import CandidateRepository, SourceRunRepository
+
+logger = logging.getLogger(__name__)
 
 
 class HealthService:
@@ -46,14 +49,9 @@ class HealthService:
             }
 
             return ResultEnvelope(ok=True, data=data, next_action=next_action)
-        except Exception as e:
+        except Exception:
+            logger.exception("Health check failed")
             return ResultEnvelope(
                 ok=False,
-                errors=[
-                    {
-                        "code": "HEALTH_CHECK_FAILED",
-                        "message": str(e),
-                        "retryable": True,
-                    }
-                ],
+                errors=[{"code": "HEALTH_CHECK_FAILED", "message": "Internal error during health check.", "retryable": True}],
             )

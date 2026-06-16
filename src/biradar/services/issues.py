@@ -1,5 +1,6 @@
 """Issue service for generating and exporting newsletter drafts."""
 
+import logging
 import uuid
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ from biradar.storage.repository import (
     IssueRepository,
     ScoreRepository,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class IssueService:
@@ -230,16 +233,11 @@ class IssueService:
                 next_action="Call radar_export_issue to save this draft to disk.",
             )
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to create issue draft")
             return ResultEnvelope(
                 ok=False,
-                errors=[
-                    {
-                        "code": "CREATE_DRAFT_FAILED",
-                        "message": str(e),
-                        "retryable": True,
-                    }
-                ],
+                errors=[{"code": "CREATE_DRAFT_FAILED", "message": "Internal error creating draft.", "retryable": True}],
             )
 
     def export_issue(
@@ -316,7 +314,12 @@ class IssueService:
 
             # Generate filename
             filename = f"issue-{issue['week']}-{issue['tier']}.md"
-            export_path = self.export_dir / filename
+            export_path = (self.export_dir / filename).resolve()
+            if not str(export_path).startswith(str(self.export_dir.resolve())):
+                return ResultEnvelope(
+                    ok=False,
+                    errors=[{"code": "EXPORT_FAILED", "message": "Export path escapes export directory.", "retryable": False}],
+                )
 
             content = issue["draft_markdown"]
             content_hash = compute_content_hash(content)
@@ -353,10 +356,9 @@ class IssueService:
                 next_action="Draft exported successfully. Review the local Markdown file before any manual publishing.",
             )
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to export issue %s", issue_id)
             return ResultEnvelope(
                 ok=False,
-                errors=[
-                    {"code": "EXPORT_FAILED", "message": str(e), "retryable": True}
-                ],
+                errors=[{"code": "EXPORT_FAILED", "message": "Internal error exporting issue.", "retryable": True}],
             )

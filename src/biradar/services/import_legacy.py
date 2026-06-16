@@ -79,9 +79,13 @@ class LegacyImportService:
                 ],
             )
 
-        # Record pre-import hash and mtime
+        # Record pre-import hash and mtime (chunked to avoid OOM on large files)
         stat = legacy_path.stat()
-        pre_hash = hashlib.sha256(legacy_path.read_bytes()).hexdigest()
+        h = hashlib.sha256()
+        with open(legacy_path, "rb") as f:
+            while chunk := f.read(8192):
+                h.update(chunk)
+        pre_hash = h.hexdigest()
         pre_mtime = stat.st_mtime
         pre_size = stat.st_size
 
