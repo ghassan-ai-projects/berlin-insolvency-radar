@@ -336,6 +336,27 @@ class SourceRunRepository:
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
 
+    def list_runs(
+        self,
+        source_id: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List source runs with optional source/status filters."""
+        query = "SELECT * FROM source_runs WHERE 1=1"
+        params: list[Any] = []
+        if source_id:
+            query += " AND source_id = ?"
+            params.append(source_id)
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY started_at DESC LIMIT ?"
+        params.append(limit)
+        cursor = self.db.conn.execute(query, params)
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
     def create_run(
         self,
         source_run_id: str,

@@ -128,6 +128,37 @@ Recommended error envelope:
 - Agent outputs must include confidence and unsupported-claim fields where relevant.
 - Seeded safety tests must verify that risk-review agents block unsupported or personal-data claims.
 
+#### Prompt Framework Standard
+
+All agent prompts should be structured with the `RCTCO` framework:
+
+- `R` = Role
+- `C1` = Core Task
+- `T` = Context
+- `C2` = Constraints
+- `O` = Output Format
+
+Project-specific rules:
+
+- `Role` should be narrow and operational, not theatrical.
+- `Core Task` should describe one node-level job only.
+- `Context` should include only the evidence, workflow state, and business facts needed for that job.
+- `Constraints` must explicitly state:
+  - evidence handling rules
+  - uncertainty handling rules
+  - prohibited behavior such as policy decisions, unsupported claims, or treating inference as fact
+- `Output Format` should be structured whenever a downstream node or service consumes the result.
+
+Required constraint examples for this project:
+
+- do not decide compliance policy
+- do not invent evidence
+- cite evidence or mark inference
+- separate factual extraction from editorial interpretation
+- return confidence and unsupported-claim markers where relevant
+
+If a prompt needs an explicit self-check, place it under `Constraints` rather than expanding the framework. The important rule is that prompts remain versioned, auditable, and machine-usable.
+
 ### MCP Standards
 
 - MCP tools should be thin wrappers over application services.

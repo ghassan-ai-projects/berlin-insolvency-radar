@@ -45,20 +45,22 @@ Yet there's no curated, Berlin/Germany-focused weekly opportunity newsletter. Ex
 - Disclaimers: not financial/legal advice
 
 ### Platform
-- **Start on beehiiv** (not Substack) — better GDPR compliance (custom cookie consent, double opt-in with 48h Smart Nudge, 0% revenue cut vs Substack's 10%). Ghost if we need full control, but adds overhead.
-- beehiiv's mandatory DOI + custom consent scripts significantly reduce legal risk in the EU market.
+- **Publish later on beehiiv** (not Substack) when we decide to externalize the output — better GDPR compliance (custom cookie consent, double opt-in with 48h Smart Nudge, 0% revenue cut vs Substack's 10%). Ghost if we need full control, but adds overhead.
+- beehiiv's mandatory DOI + custom consent scripts significantly reduce legal risk in the EU market once publishing begins.
 - Substack's rigidity on compliance makes it a legal liability for a B2B product in the European market.
 
 ### Launch Strategy
-- Write 3 manual issues first to prove concept + scoring system
+- Write 3 manual/export-ready issues first to prove concept + scoring system
 - Build only the smallest MCP-first production core before deeper automation
-- Launch free, add paid tier after building audience
+- Phase 2 should make the system a fully agentic local workflow, but still stop at export-ready artifacts
+- Move paid tiers, paid sources, and external publishing to Phase 3 after the autonomous local flow is stable
 
 ### Technical
 - v0 is MCP-first: DuckDB-backed local database, LangGraph workflow, read-only legacy import, manual input, review, scoring, draft/export
 - Do not run the old `insolvency-scout` pipeline and the new pipeline at the same time
 - Build the fresh official scraper only after the v0 MCP core is stable
-- Use Insolvenz-Radar/InsolvenzIndex as validation or fallback, not the default engine
+- Phase 2 should rely on official and free/public sources only
+- Use Insolvenz-Radar/InsolvenzIndex only later as validation or fallback, not the default engine
 - Scoring dimensions: company value, asset quality, sector attractiveness, speed of action, legal risk
 
 ### Open-Source Boundary (Phase 4+)

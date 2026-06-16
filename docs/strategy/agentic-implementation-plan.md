@@ -11,7 +11,7 @@
 
 The current strategy is directionally strong: the product value is curation and ranked intelligence, not scraping. The documents also make the right early call to validate manually before building a large automated system.
 
-The main risk is over-automating too early. Insolvency opportunity scoring combines public facts, weak signals, legal sensitivity, and subjective commercial judgment. A fully autonomous agent that scrapes, scores, writes, and publishes would create accuracy, defamation, GDPR, and financial-advice risk. The correct architecture is **agent-assisted intelligence with deterministic controls and human approval**.
+The main risk is over-automating the wrong boundary. Insolvency opportunity scoring combines public facts, weak signals, legal sensitivity, and subjective commercial judgment. A fully autonomous agent that scrapes, scores, writes, and publishes externally would create accuracy, defamation, GDPR, and financial-advice risk. The revised architecture should therefore distinguish between **fully agentic local workflow execution** and **external publication**. Phase 2 can be fully agentic up to export-ready issue artifacts, while Phase 3 keeps the external publish/commercial boundary.
 
 The second risk is treating the score as objective. The v1 model is useful, but it will look more precise than it really is unless every score has evidence, confidence, and reviewer notes. The score should be framed as an editorial prioritization score, not a valuation or investment recommendation.
 
@@ -25,17 +25,26 @@ The fourth risk is compliance drift. Consumer insolvencies, individual names, di
 
 Use **LangGraph from v0** for orchestration and durable workflow state, **LangChain** for model/tool integrations and structured outputs, and ordinary Python modules for deterministic business logic.
 
-LangGraph is appropriate because this workflow is stateful, multi-step, interruptible, and human-reviewed. LangChain is appropriate for structured extraction, summarization, drafting, and model/tool wrappers. The scoring formula, source filtering, deduplication, data retention, and publishing gates should stay outside the LLM.
+LangGraph is appropriate because this workflow is stateful, multi-step, interruptible, and auditable. LangChain is appropriate for structured extraction, summarization, drafting, and model/tool wrappers. The scoring formula, source filtering, deduplication, data retention, and publishing gates should stay outside the LLM.
+
+All agent prompts in this project should use the `RCTCO` framework:
+
+- `R` = Role
+- `C1` = Core Task
+- `T` = Context
+- `C2` = Constraints
+- `O` = Output Format
+
+For this repo, `Constraints` must always include evidence rules, uncertainty rules, and prohibited behaviors. In practice that means prompts should tell the model not to decide policy, not to invent evidence, and to mark unsupported claims or inferences explicitly.
 
 Use the existing `insolvency-scout` database as a compatibility input and migration source. The production scraper, storage model, scoring, editorial review, and issue generation should live in this repo with clean boundaries. Do not copy old code blindly; reimplement only the behavior we intentionally choose after reviewing the old system's data and failure modes.
 
 ### Design Principle
 
 ```
-Agents suggest.
-Code verifies.
-Humans approve.
-Logs remember.
+Agents run the workflow.
+Code verifies guardrails.
+Logs remember everything.
 ```
 
 ---
@@ -52,11 +61,10 @@ flowchart TD
     F --> G["Score deterministically"]
     G --> H["Research agent analysis"]
     H --> I["Risk and compliance review"]
-    I --> J{"Human approval"}
-    J -->|revise| H
-    J -->|approve| K["Generate newsletter draft"]
-    K --> L["Editorial review"]
-    L --> M["Export Markdown for beehiiv"]
+    I --> J["Generate newsletter draft"]
+    J --> K["Assemble export-ready local artifact"]
+    K --> L["Write audit and run summary"]
+    L --> M["Export local issue package"]
 ```
 
 ---
@@ -118,7 +126,7 @@ Responsibilities:
 - Store dimension values, weights, reviewer, timestamp, and score version.
 - Support weight changes through config.
 
-The LLM may propose dimension scores, but the final score must be written by deterministic code after human acceptance.
+The LLM may propose dimension scores, but the final score must be written by deterministic code. In Phase 2 this validation and score write happen autonomously inside the workflow, without a human approval step. External publication remains outside this boundary.
 
 ### 6. Research Analyst Agent
 
@@ -130,7 +138,7 @@ Responsibilities:
 - Produce buyer-fit tags.
 - Assign confidence and missing-information notes.
 
-This is where agentic reasoning creates value, but it must be grounded in the normalized record and enrichment evidence.
+This is where agentic reasoning creates value, but it must be grounded in the normalized record and enrichment evidence, and its prompt should enforce that through `RCTCO` constraints.
 
 ### 7. Risk Reviewer Agent
 
@@ -152,7 +160,7 @@ Responsibilities:
 - Use the existing newsletter template.
 - Include source links, score badges, confidence notes, and disclaimer.
 
-Output should be a draft only. No autonomous publishing in Phase 1-2.
+Output should be a draft artifact only. Phase 2 may generate it autonomously, but no external publishing should happen in Phase 1-2.
 
 ---
 
@@ -307,21 +315,30 @@ Build only a small scraper spike if needed to prove the new source abstraction a
 
 Exit criteria:
 - 3 issues produced.
-- Each opportunity has source, score rationale, and human approval.
-- Subscriber and reply metrics justify deeper automation.
+- Each opportunity has source, score rationale, and enough evidence to be export-ready locally.
+- Issue quality and workflow stability justify deeper automation.
 - Legacy data can be imported or queried without running the old pipeline.
 
-### Phase 2: New Official Portal Scraper
+### Phase 2: Fully Agentic Local Pipeline
 
-Goal: implement a clean scraper in this repo with production standards.
+Goal: implement the full end-to-end repo-owned pipeline so the system can go from live official acquisition to export-ready issue artifacts through a fully agentic workflow without human review.
 
 Build:
 - Official portal source adapter for `neu.insolvenzbekanntmachungen.de`.
 - Deterministic request lifecycle, retries, timeout handling, and structured parse errors.
 - Source-run records for every scrape attempt.
 - Stable deduplication before insert.
+- Scheduled ingestion and fully agentic workflow execution with restart-safe checkpoints.
+- ID-based LangGraph state with DuckDB as the single durable product-state store.
+- Explicit persistence model for extraction, enrichment, and risk-review outputs through migrations and repository APIs.
+- Structured extraction agent.
+- Free/public-source enrichment only: official filing text, public register data where accessible, company website, and other no-cost sources. Anti-bot or 403 responses must be recorded as `blocked_by_anti_bot`, retries must stop for that source, and the workflow must continue safely.
+- Deterministic compliance, confidence thresholds, quarantine rules, and score computation.
+- Analyst and risk-review agents that run as first-class workflow nodes before export.
+- Persisted audit-visible quarantine, retry, and exclusion reasons for risk-review failures. Candidates may be excluded from export, but never silently.
+- Draft artifact generation: Markdown, structured JSON, and audit/run summary.
 - Fixtures from saved HTML/result samples.
-- Tests for parsing, date normalization, legal-form extraction, empty results, portal errors, and duplicate handling.
+- Tests for parsing, date normalization, legal-form extraction, empty results, portal errors, duplicate handling, anti-bot handling, quarantine thresholds, and full workflow execution.
 
 Use the old scraper only as a behavioral reference and test oracle. Do not run it alongside the new production scraper once this phase is active.
 
@@ -329,53 +346,27 @@ Exit criteria:
 - New scraper produces the same or better candidate coverage as the legacy DB for a sampled historical date window.
 - Every run has a source-run record and error status.
 - Running the scraper repeatedly is idempotent.
+- A scheduled run can produce an export-ready issue artifact through the full agent graph without manual intervention.
+- No paid source, paid feature, or human review step is required for the local pipeline to complete.
 - Old `insolvency-scout` jobs remain disabled.
 
-### Phase 3: Agent-Assisted Drafting
+### Phase 3: Publishing, Commercial Delivery, And Paid Expansion
 
-Goal: reduce manual research and writing time while preserving editorial control.
+Goal: turn the autonomous local pipeline into an externally delivered product.
 
 Build:
-- LangGraph workflow with checkpointing.
-- Structured extraction agent.
-- Analyst agent.
-- Risk reviewer agent.
-- Human interrupt before final draft export.
-- LangSmith tracing or equivalent observability for agent runs.
+- beehiiv delivery workflow and archive operations.
+- Publishing approval and release controls.
+- Paid/free tier packaging.
+- Insolvenz-Radar or InsolvenzIndex adapter only if the official scraper cannot provide sufficient coverage or reliability.
+- Paid enrichment only if free/public enrichment proves too weak for product quality.
+- Premium alerts, commercial delivery flows, and sector-specific product variants.
 
 Exit criteria:
-- Draft generation is faster than manual writing.
-- No consumer records pass the filter in tests.
-- Risk reviewer catches seeded unsupported claims.
-
-### Phase 4: API Ingestion
-
-Goal: add Insolvenz-Radar only if the new scraper cannot provide reliable coverage.
-
-Build:
-- Insolvenz-Radar source adapter behind `SourceProvider`.
-- Scheduled ingestion job.
-- Deduplication by source, court, case number, company name, and filing date.
-- Retry and error logging.
-- Data retention policy enforcement.
-
-Exit criteria:
-- Weekly pipeline can produce a ranked candidate list from API records.
-- Human review still required before export.
-- Source outage does not corrupt existing issue data.
-
-### Phase 5: Premium Alerts
-
-Goal: introduce high-signal alerts without flooding subscribers.
-
-Build:
-- Subscriber alert criteria model.
-- Alert scoring threshold.
-- Human approval for alert templates at first.
-- Sector and geography filters.
-
-Critical note:
-Real-time alerts increase liability because the product starts to look operational rather than editorial. Legal review should happen again before this phase.
+- Export-ready issues can be delivered through the chosen external platform.
+- Paid/free segmentation works operationally.
+- Commercial fallback sources do not replace the repo-owned canonical state.
+- Publishing/alerts have explicit operational and legal controls.
 
 Do not build:
 - Autonomous publishing.

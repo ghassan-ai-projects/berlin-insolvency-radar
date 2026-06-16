@@ -22,7 +22,7 @@ MCP tools / CLI
     -> local exports
 ```
 
-OpenClaw and other agents interact only through MCP. DuckDB is the local source of truth. LangGraph coordinates workflow state and human review. Deterministic Python modules enforce compliance, deduplication, scoring, and audit.
+OpenClaw and other agents interact only through MCP. DuckDB is the local source of truth. LangGraph coordinates the workflow state, agent execution, and any optional human review where a phase requires it. Deterministic Python modules enforce compliance, deduplication, scoring, export gates, and audit.
 
 ---
 
@@ -40,7 +40,7 @@ OpenClaw and other agents interact only through MCP. DuckDB is the local source 
 
 - Small v0, serious foundations.
 - Typed inputs and outputs at every boundary.
-- Deterministic core behavior with agentic assistance around extraction, research, and drafting.
+- Fully agentic workflow execution with deterministic guardrails around compliance, deduplication, scoring, export, and audit.
 - Re-runnable imports and idempotent workflows.
 - Full audit trail for every state-changing action.
 - Local-first operation with a clear path to hosted or multi-user architecture later.
@@ -82,9 +82,9 @@ For experimentation, clone the legacy DB to an explicit snapshot path such as `d
 
 DuckDB is the right default because this is a local analytical workflow with evidence tables, ranking, exports, and legacy DuckDB compatibility. If the product later needs many concurrent users or hosted writes, move repository implementations to Postgres without changing domain services.
 
-### 3. LangGraph Coordinates, It Does Not Decide Policy
+### 3. LangGraph Runs The Workflow, It Does Not Own Policy
 
-LangGraph should orchestrate the workflow from v0, but the graph should call deterministic modules for:
+LangGraph should orchestrate and run the workflow from v0 onward, but the graph should call deterministic modules for:
 
 - corporate-only filtering
 - deduplication
@@ -94,6 +94,8 @@ LangGraph should orchestrate the workflow from v0, but the graph should call det
 - export gates
 
 LLM nodes may extract, summarize, draft, and critique. They should not be the final authority on whether a record is legal, publishable, or scored.
+
+Prompt design for LLM nodes should follow the `RCTCO` structure: `Role`, `Core Task`, `Context`, `Constraints`, and `Output Format`. For this project, constraints must explicitly cover evidence provenance, uncertainty marking, and prohibited behaviors.
 
 ### 4. Evidence Is More Important Than Text
 
@@ -807,7 +809,7 @@ Done when:
 - duplicates collapse
 - candidate review writes score, status, and audit event
 
-### Phase 2: Draft And Export
+### Phase 2: Autonomous Draft And Export
 
 Build:
 
@@ -815,39 +817,40 @@ Build:
 - Markdown renderer
 - export tool
 - output gates
+- autonomous run orchestration without human review
 
 Done when:
 
-- approved candidates can produce a local Markdown issue
+- live acquired candidates can produce a local export-ready issue artifact without manual intervention
 - unapproved or quarantined candidates cannot be exported
+- no external publish/send step is required
 
-### Phase 3: Fresh Official Portal Source
+### Phase 3: External Publishing And Commercial Delivery
 
 Build:
 
-- repo-owned official portal adapter
-- source-run tracking
-- parser fixtures
-- idempotent acquisition
+- external publishing workflow
+- archive delivery
+- paid tier packaging
+- commercial operations controls
 
 Done when:
 
-- sampled historical windows match or improve on legacy coverage
-- old pipeline remains disabled
+- export-ready artifacts can be delivered externally
+- paid/free boundaries are operationally supported
 
-### Phase 4: Agentic Research And Drafting
+### Phase 4: Paid Sources, Expansion, And Advanced Research
 
 Build:
 
-- extraction agent
-- analyst agent
-- risk-review agent
-- LangGraph human interrupt
+- commercial fallback adapters
+- deeper enrichment
+- advanced research workflows
 - tracing/evals
 
 Done when:
 
-- drafts are faster to produce
+- the free pipeline is no longer the only source of usable coverage
 - seeded unsupported claims are blocked
 - no consumer records pass tests
 
@@ -861,7 +864,7 @@ Use DuckDB for v0 because it matches the local analytical nature of the product.
 
 ### LangGraph From v0, But Minimal
 
-Use LangGraph to avoid building a pile of ad hoc scripts. Keep the first graph simple and deterministic. Add LLM-heavy nodes only after evidence, review, and export are solid.
+Use LangGraph to avoid building a pile of ad hoc scripts. Keep the first graph simple and deterministic in Phase 0-1, then make it the fully agentic execution backbone in Phase 2 once evidence, scoring, and export gates are solid.
 
 ### MCP First, CLI Second, UI Later
 
@@ -880,7 +883,7 @@ Best in class does not mean biggest architecture. For this product it means:
 - the smallest workflow that can be trusted
 - clear evidence for every output
 - boring deterministic controls where risk is high
-- agentic help where judgment and language matter
+- agentic execution where judgment and language matter
 - one state owner
 - one audit trail
 - one MCP contract

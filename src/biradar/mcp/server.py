@@ -1,6 +1,7 @@
 """MCP Server for Berlin Insolvency Radar."""
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +18,11 @@ from biradar.mcp.schemas import (
     HealthInput,
     ImportLegacyScoutInput,
     ListCandidatesInput,
+    ListSourceRunsInput,
     ReviewCandidateInput,
+    RunPhase2WorkflowInput,
 )
+from biradar.services.phase2_pipeline import run_phase2_pipeline
 from biradar.services.container import AppContainer
 
 
@@ -193,6 +197,31 @@ def list_radar_tools() -> list[Tool]:
                 },
             },
         ),
+        Tool(
+            name="radar_list_source_runs",
+            description="Inspect source-run history for official acquisition runs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "source_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+            },
+        ),
+        Tool(
+            name="radar_run_phase2_workflow",
+            description="Trigger the fully agentic Phase 2 pipeline from ingestion to local export.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "dry_run": {"type": "boolean", "default": False},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
     ]
 
 
@@ -278,6 +307,43 @@ def call_radar_tool(
                 limit=params.limit,
             )
             return ResultEnvelope(ok=True, data=events)
+
+        if name == "radar_list_source_runs":
+            params = ListSourceRunsInput(**args)
+            runs = container.health.source_run_repo.list_runs(
+                source_id=params.source_id,
+                status=params.status,
+                limit=params.limit,
+            )
+            return ResultEnvelope(ok=True, data=runs)
+
+        if name == "radar_run_phase2_workflow":
+            params = RunPhase2WorkflowInput(**args)
+            result = run_phase2_pipeline(
+                start_date=params.start_date,
+                end_date=params.end_date,
+                dry_run=params.dry_run,
+            )
+            return ResultEnvelope(
+                ok=result.get("status") == "success",
+                data=result,
+                errors=(
+                    []
+                    if result.get("status") == "success"
+                    else [
+                        {
+                            "code": "PHASE2_WORKFLOW_FAILED",
+                            "message": result.get("error", "Phase 2 workflow failed."),
+                            "retryable": True,
+                        }
+                    ]
+                ),
+                next_action=(
+                    "Inspect radar_audit_trail and exported artifacts."
+                    if result.get("status") == "success"
+                    else "Review the workflow error and retry the run."
+                ),
+            )
 
         return ResultEnvelope(
             ok=False,

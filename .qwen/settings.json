@@ -5,7 +5,9 @@
       "Bash(source *)",
       "Bash(ruff *)",
       "Bash(mkdir *)",
-      "Bash(uv *)"
+      "Bash(uv *)",
+      "Bash(python *)",
+      "Bash(cd *)"
     ]
   },
   "$version": 4

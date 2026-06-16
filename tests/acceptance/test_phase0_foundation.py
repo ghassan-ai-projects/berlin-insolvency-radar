@@ -72,8 +72,8 @@ def test_at_0_2_health_tool_works_on_fresh_db(container):
 
 def test_at_0_3_result_envelope_is_stable(container):
     """AT-0.3: Result Envelope Is Stable."""
-    tools = list_radar_tools()
-    assert [tool.name for tool in tools] == [
+    tool_names = [tool.name for tool in list_radar_tools()]
+    assert tool_names[:8] == [
         "radar_health",
         "radar_import_legacy_scout",
         "radar_list_candidates",
@@ -83,6 +83,7 @@ def test_at_0_3_result_envelope_is_stable(container):
         "radar_export_issue",
         "radar_audit_trail",
     ]
+    assert "radar_notify_completion" not in tool_names
 
     # Test success envelope
     health_result = call_radar_tool(container, "radar_health", {})

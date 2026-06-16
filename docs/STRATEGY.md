@@ -19,11 +19,12 @@ German corporate insolvencies are at a 10-year high and rising (24,064 in 2025, 
 ## Launch Strategy
 
 1. **Legal first:** One session with German media lawyer (skip consumer filings → eliminates GDPR risk)
-2. **3 manual issues on beehiiv:** Prove concept, refine scoring. beehiiv chosen over Substack for GDPR compliance (custom cookie consent, mandatory double opt-in, 0% revenue cut vs Substack's 10%).
+2. **3 manual/export-ready issues locally:** Prove concept and refine scoring before any external publishing.
 3. **MCP-first v0 before automation:** DuckDB-backed local database, LangGraph workflow, read-only legacy import, manual input, review, scoring, draft/export.
 4. **No parallel pipelines:** the old `insolvency-scout` project is a reference and backfill source, not a second production system.
 5. **Fresh scraper after the core is stable:** build the official-portal adapter in this repo only after v0 is pleasant to use.
-6. **Add paid tier at Month 2** when the format is proven.
+6. **Phase 2 = fully agentic local pipeline:** go from live scrape to export-ready issue artifacts through a LangGraph-driven agent workflow, without human review, paid sources, or paid features.
+7. **Phase 3 = publishing and monetization:** add beehiiv, paid tiers, audience/distribution, and any commercial fallback sources only after the autonomous local flow is stable.
 
 ## Brand Position
 

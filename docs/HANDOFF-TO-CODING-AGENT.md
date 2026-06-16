@@ -55,12 +55,15 @@ A curated weekly intelligence newsletter that scans German insolvency filings, r
 - **Cost:** €0
 - **Why:** Validate concept before any automation
 
-### Phase 2: Repo-Owned Automated Pipeline
+### Phase 2: Repo-Owned Autonomous Local Pipeline
 - **Primary source:** fresh official-portal adapter for `neu.insolvenzbekanntmachungen.de`
 - **Why:** canonical source, lower vendor dependency, better evidence provenance
 - **Required standards:** source-run logging, saved evidence, parse errors, retries, idempotent dedupe
+- **Output goal:** complete local issue artifacts ready for publication, but not published
+- **Constraint:** no paid features and no paid data sources are required in this phase
 
-### Phase 3+: Commercial Fallback And Enrichment
+### Phase 3+: Commercial Delivery, Publishing, And Paid Fallbacks
+- **Publishing:** beehiiv workflow, archive delivery, launch/distribution operations
 - **Discovery fallback:** Insolvenz-Radar or InsolvenzIndex if official coverage or reliability is not good enough
 - **Enrichment:** OpenRegister, Unternehmensregister/Bundesanzeiger, Handelsregister, company website, GitHub where appropriate
 - **Rule:** paid APIs can improve coverage and enrichment, but they should not replace the repo-owned product state
@@ -124,7 +127,7 @@ Berlin Insolvency Radar — Week [W] [Date]: [Hook/Teaser]
 - Weekly, send before **Tuesday 10:00 CET** (best B2B open rates)
 - LinkedIn teaser post on Monday
 
-## 8. Platform: beehiiv
+## 8. Platform: beehiiv (Phase 3)
 
 Chosen over Substack and Ghost:
 - ✅ Custom cookie consent banner for EU GDPR compliance
@@ -132,7 +135,7 @@ Chosen over Substack and Ghost:
 - ✅ 0% revenue cut (vs Substack's 10%)
 - ❌ No native discovery (Substack is better) — compensate with own LinkedIn distribution
 
-**Setup tasks:**
+**Setup tasks for later publish phase:**
 - Create beehiiv account
 - Configure cookie consent banner
 - Set up double opt-in
@@ -145,28 +148,32 @@ Chosen over Substack and Ghost:
 - [ ] Legal consultation with German media/IT lawyer
 - [ ] Standard disclaimers drafted
 - [ ] Newsletter name + brand positioning decided
-- [ ] beehiiv account set up
 - [ ] Scoring framework finalized
 - [ ] Issue template created
-- [ ] "Coming soon" landing page published
+- [ ] Export-ready issue package format defined
+- [ ] External publishing remains disabled
 
 ### Phase 1: Validate (Weeks 2–6)
-- [ ] 3 manual issues published weekly
+- [ ] 3 manual/export-ready issues produced weekly
 - [ ] Data manually sourced from insolvenzbekanntmachungen.de + Insolvenz-Radar free tier
-- [ ] LinkedIn launch post: "I built a tool that scans Berlin insolvency cases and ranks acquisition opportunities. Comment 'Berlin' for the first issue."
-- [ ] Direct DM 20–30 M&A professionals
-- [ ] Target: 100+ subscribers, 40%+ open rate
+- [ ] Internal quality review of issue usefulness, evidence, and score confidence
+- [ ] Target: output is publication-ready locally, even though nothing is published yet
 
-### Phase 2: Automate (Weeks 6–10) — Build After MCP v0
+### Phase 2: Autonomous Local Pipeline (Weeks 6–10) — Build After MCP v0
 - [ ] Fresh official-portal scraper in this repo
 - [ ] Source-run logging, retries, parse errors, idempotent dedupe
-- [ ] Evaluate Insolvenz-Radar/InsolvenzIndex as fallback or enrichment, not the default engine
-- [ ] AI-assisted editing (not fully automated)
+- [ ] Fully agentic extraction, enrichment, scoring, risk review, and draft assembly with no human review required
+- [ ] Use only official and free/public sources in this phase
+- [ ] Generate export-ready Markdown and structured artifacts locally
+- [ ] Keep external publishing disabled
+
+### Phase 3: Publish And Monetize (Months 3–6)
+- [ ] beehiiv account set up
 - [ ] beehiiv paid tier activated (€19/mo)
 - [ ] Archive access for paid subscribers
-
-### Phase 3: Grow (Months 3–6)
 - [ ] Premium tier: €49/mo, custom alerts
+- [ ] Evaluate paid fallback/enrichment sources if free pipeline coverage is insufficient
+- [ ] LinkedIn launch post and distribution outreach
 - [ ] LinkedIn ads test (€100 budget)
 - [ ] One-off deep dives (€99–299)
 
@@ -214,10 +221,10 @@ Chosen over Substack and Ghost:
 
 ### Agentic Architecture Guidance
 
-Use LangGraph from v0 for orchestration/checkpointing, and LangChain for structured extraction, tool use, and drafting. Do **not** make this a fully autonomous publishing agent. The safe architecture is:
+Use LangGraph from v0 for orchestration/checkpointing, and LangChain for structured extraction, tool use, and drafting. In the revised plan, Phase 2 should be a **fully agentic local workflow** for artifact generation, but it must still stop short of external publishing. The safe architecture is:
 
 ```
-agents suggest -> deterministic code verifies -> human approves -> audit log persists
+agents act end to end -> deterministic code verifies guardrails -> audit log persists
 ```
 
 Keep these deterministic:
@@ -263,8 +270,8 @@ Critical caveat: the existing scraper feed has duplicates and weak run logging. 
 1. **MCP server skeleton** — expose only v0 tools first: `radar_health`, `radar_import_legacy_scout`, `radar_list_candidates`, `radar_get_candidate`, `radar_review_candidate`, `radar_create_issue_draft`, `radar_export_issue`, `radar_audit_trail`.
 2. **Scoring engine** — implement `opportunity_score(company_value, asset_quality, sector_attractiveness, speed_of_action, legal_risk)` with the weighted formula above. Configurable weights for future tuning.
 3. **Data source module** — abstracted interface. Start with a new repo-owned DuckDB storage model, manual JSON/CSV input, and a read-only `insolvency-scout` DuckDB import adapter. Prep for a fresh official-portal scraper in this repo; Insolvenz-Radar remains a secondary source.
-4. **Issue generator** — take scored companies, format into newsletter template (markdown). Output ready to paste into beehiiv.
-5. **Data enrichment helpers** — parse insolvenzbekanntmachungen.de notice text, extract entity name, sector, proceed-to-date.
+4. **Issue generator** — take scored companies, format into newsletter template (markdown). Output ready for local review or later paste into beehiiv.
+5. **Data enrichment helpers** — parse insolvenzbekanntmachungen.de notice text, extract entity name, sector, proceed-to-date using free/public sources first.
 6. **Filter module** — strip consumer insolvencies, keep only corporate filings.
 
 ### v0 Definition Of Done

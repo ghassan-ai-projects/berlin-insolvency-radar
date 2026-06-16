@@ -12,9 +12,13 @@ The old `insolvency-scout` project proved that the official German insolvency po
 The new repo should start fresh with a source strategy built around four layers:
 
 1. **Authoritative discovery** — find insolvency publications from official or near-official sources.
-2. **Commercial fallback** — use paid APIs when speed, coverage, or legal/operational stability matters more than cost.
+2. **Free/public enrichment** — enrich only with no-cost public evidence in the autonomous local phase.
 3. **Company enrichment** — enrich only after a corporate filing is verified and deduplicated.
-4. **Editorial validation** — every published claim must trace to a source, confidence level, or explicit inference.
+4. **Commercial fallback** — use paid APIs only later when speed, coverage, or legal/operational stability matters more than cost.
+
+Phase rule:
+- Phase 2 should operate end to end using only official and free/public sources.
+- Paid discovery or enrichment sources belong to Phase 3+ after the autonomous local pipeline is stable.
 
 OpenClaw can trigger jobs and report status. It should not own source state, deduplication, or publication logic.
 

@@ -24,69 +24,80 @@
 - [ ] Keep the old `insolvency-scout` jobs disabled; do not run parallel production pipelines
 
 ### Platform
-- [ ] Set up **beehiiv** account (not Substack — better GDPR compliance, 0% revenue cut, smart double opt-in with 48h nudge)
-- [ ] Configure custom cookie consent banner for EU compliance
-- [ ] Set up double opt-in with 48h Smart Nudge
-- [ ] Configure free tier only to start
-- [ ] Write "coming soon" landing page with email signup
+- [ ] Define the export-ready issue artifact format and publishing handoff package
+- [ ] Keep external publishing disabled until the autonomous local flow is stable
+- [ ] Document what a future beehiiv handoff will require, but do not configure it yet
 
 ---
 
 ## Phase 1: Validate (Weeks 2–6)
 
 ### Content
-- [ ] Publish 3 manual issues (weekly)
+- [ ] Prepare 3 manual/export-ready issues locally (weekly)
 - [ ] Source data from insolvenzbekanntmachungen.de + Insolvenz-Radar free tier
 - [ ] Refine scoring model after each issue
 
 ### Distribution
-- [ ] Post on LinkedIn: "I built a tool that scans Berlin insolvency cases and ranks acquisition opportunities. Comment 'Berlin' for the first issue."
-- [ ] Direct DM to 20–30 M&A professionals, consultants, PE contacts
-- [ ] Post in relevant Berlin/Germany startup or business groups
+- [ ] Skip public launch and outbound distribution in this phase
+- [ ] Review issue quality internally against the target audience use cases
+- [ ] Decide whether the output is strong enough to justify future publishing work
 
 ### Metrics
-- [ ] Track: subscribers, open rate, reply rate
-- [ ] Target: 100+ subscribers, 40%+ open rate by end of Phase 1
+- [ ] Track: issue quality, candidate coverage, duplicate rate, false-positive rate, and time-to-draft
+- [ ] Target: 3 strong local issues with stable confidence and evidence quality by end of Phase 1
 
 ### Go/No-Go Decision
-- After 3 issues, if subscriber growth is real and replies indicate demand → proceed to Phase 2
-- If <50 subscribers or <30% open rate → reconsider format, distribution, or pivot
+- After 3 issues, if the local output is strong and the workflow is stable → proceed to Phase 2
+- If issue quality is weak or evidence is thin → improve scoring, sourcing, or draft structure before automation
 
 ---
 
-## Phase 2: Automate (Weeks 6–10)
+## Phase 2: Autonomous Local Pipeline (Weeks 6–10)
 
 ### Technical
 - [ ] Build fresh official-portal scraper in this repo, after MCP v0 is stable
 - [ ] Keep source-run logs, parse errors, retries, and idempotent dedupe
-- [ ] Evaluate Insolvenz-Radar/InsolvenzIndex as fallback or enrichment, not the default first engine
-- [ ] Use AI-assisted editing (not fully automated — human review)
-- [ ] Set up beehiiv paid tier
+- [ ] Add scheduled local runs with durable workflow state and restart safety
+- [ ] Add a fully agentic extraction, enrichment, scoring, risk-review, and draft-assembly workflow without requiring human review
+- [ ] Use only official and free/public sources in this phase; no paid APIs, no paid datasets
+- [ ] Keep deterministic compliance, quarantine, evidence, and export gates
+- [ ] Export complete local issue artifacts: Markdown, structured JSON, and run/audit summary
 
 ### Product
+- [ ] Produce a full ranked issue draft automatically from live acquisition
+- [ ] Keep output local and reviewable; do not publish externally in this phase
+- [ ] Generate "newsletter-ready" artifacts that could be pasted into a publishing tool later
+- [ ] Include enough evidence and confidence metadata for each ranked company
+
+### Operational Exit Criteria
+- [ ] Repeated scheduled runs complete without manual intervention
+- [ ] The system can go from fresh scrape to export-ready issue artifact through the full agent workflow
+- [ ] Candidate quality is stable enough that quarantines and confidence thresholds catch weak records without human review
+- [ ] No paid feature, paid archive, paid alert, or paid source is required for the pipeline to operate
+
+---
+
+## Phase 3: Publish And Commercialize (Months 3–6)
+
+### Platform And Distribution
+- [ ] Set up beehiiv publishing workflow
+- [ ] Add archive delivery and operational publishing steps
+- [ ] Reach out to 3–5 relevant newsletters for cross-promotion
+- [ ] LinkedIn post announcing launch
+- [ ] Evaluate LinkedIn ads (small test: €100 budget)
+
+### Paid Product
 - [ ] Launch paid tier (€19/mo, €199/yr)
 - [ ] Free: top 3 opportunities
 - [ ] Paid: full ranked list (10–15) + scoring + analysis
 - [ ] Add archive access for paid subscribers
-
-### Marketing
-- [ ] Reach out to 3–5 relevant newsletters for cross-promotion
-- [ ] LinkedIn post announcing paid tier launch
 - [ ] Offer first month free for first 20 paid subscribers
 
----
-
-## Phase 3: Grow (Months 3–6)
-
-### Premium Tier
+### Premium And Commercial Data
 - [ ] Launch Premium: €49/mo, custom alerts by sector/criteria
 - [ ] Add reviewed high-signal notifications for high-value opportunities after legal review
 - [ ] Offer one-off company deep dives (€99–299 each)
-
-### Distribution
-- [ ] Evaluate LinkedIn ads (small test: €100 budget)
-- [ ] Referral program (1 month free for every referral who subscribes)
-- [ ] Guest article in a relevant industry blog/newsletter
+- [ ] Evaluate Insolvenz-Radar/InsolvenzIndex and other paid sources as fallback, validation, or enrichment only after the free pipeline is stable
 
 ### Metrics Targets
 - [ ] 500 total subscribers
@@ -117,10 +128,11 @@
 | Legal consultation done | Week 2 | ✅ |
 | First manual issue published | Week 2-3 | Published, shared |
 | 100 subscribers | Week 6 | Organic + outreach |
-| Paid tier launches | Week 8 | €19/mo active |
-| 20 paid subscribers | Month 3 | €380/mo MRR |
+| Autonomous local issue generation | Week 10 | Fresh scrape to export-ready issue runs unattended |
+| Paid tier launches | Month 3 | €19/mo active |
+| 20 paid subscribers | Month 4 | €380/mo MRR |
 | 50 paid subscribers | Month 6 | €950/mo MRR |
-| Breakeven (costs covered) | Month 4 | €50/mo costs covered |
+| Breakeven (costs covered) | Month 5 | €50/mo costs covered |
 
 ---
 
