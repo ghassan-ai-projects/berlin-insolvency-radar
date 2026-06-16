@@ -242,3 +242,4 @@ data/exports/**
 !data/exports/.gitkeep
 data/legacy_snapshots/**
 tests/fixtures/**/*.duckdb
+.qwen/
