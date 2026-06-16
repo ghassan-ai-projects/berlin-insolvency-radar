@@ -83,6 +83,8 @@ def test_at_0_3_result_envelope_is_stable(container):
         "radar_export_issue",
         "radar_audit_trail",
     ]
+    assert "radar_list_source_runs" in tool_names
+    assert "radar_run_phase2_workflow" in tool_names
     assert "radar_notify_completion" not in tool_names
 
     # Test success envelope

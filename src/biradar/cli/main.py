@@ -8,7 +8,7 @@ from pathlib import Path
 
 from biradar.config.settings import load_config
 from biradar.mcp.server import create_mcp_server, list_radar_tools
-from biradar.services.phase2_pipeline import run_phase2_pipeline
+from biradar.services.phase2_pipeline import run_phase2_check, run_phase2_pipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
@@ -62,6 +62,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="phase2_default",
         help="LangGraph thread ID for checkpointing and resume.",
     )
+    subparsers.add_parser(
+        "phase2-check",
+        help="Run fixture-backed Phase 2 verification against a temporary DuckDB.",
+    )
     
     return parser
 
@@ -112,6 +116,15 @@ def main() -> None:
             else:
                 print(f"❌ Phase 2 pipeline failed: {result.get('error')}")
                 sys.exit(1)
+            return
+
+        if command == "phase2-check":
+            result = run_phase2_check()
+            if result["status"] != "success":
+                print(f"❌ Phase 2 check failed: {result}")
+                sys.exit(1)
+            print("Phase 2 check passed.")
+            print(result)
             return
             
     except Exception as e:

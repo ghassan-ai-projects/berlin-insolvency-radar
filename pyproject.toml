@@ -55,3 +55,6 @@ include = ["src/biradar"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=src/biradar --cov-report=term-missing -v"
+markers = [
+    "live: marks tests that make live network requests and real API calls (deselect with '-m \"not live\"')",
+]

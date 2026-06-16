@@ -45,10 +45,17 @@ Agentic workflows must maintain strict boundaries between orchestration state an
 - **Rule:** LangGraph `State` (e.g., `Phase2WorkflowState`) should only carry workflow metadata, IDs, and transient retry counters (e.g., `risk_review_retries: dict[str, int]`). 
 - **Implementation:** Durable facts (candidates, scores, evidence) must be written to the database (DuckDB/Postgres) *within* the node execution, not just held in the graph state. MCP tools must return stable `ResultEnvelope` objects (`ok`, `data`, `errors`, `next_action`) to ensure predictable agent consumption.
 
+## 8. Robust LLM JSON Output & Structured Fallback
+OpenAI-compatible endpoints (e.g., DeepSeek) may not fully support LangChain's `with_structured_output` (JSON schema enforcement), leading to API rejections or malformed markdown-wrapped responses that crash the pipeline.
+- **Rule:** When initializing `ChatOpenAI` for these providers, explicitly pass `model_kwargs={"response_format": {"type": "json_object"}}` to force native JSON mode at the API level.
+- **Prompting:** Append a strict instruction to the end of every agent prompt: `"IMPORTANT: Respond ONLY with a valid JSON object. Do not include markdown formatting or any other text."`
+- **Fallback:** Wrap the LLM invocation in a `try/except` block. If structured output fails, fall back to plain text generation and use a robust regex extraction: `re.search(r'\{.*\}|\[.*\]', content, re.DOTALL)` to safely isolate the JSON payload before calling `json.loads()`. Always return a safe, deterministic mock/empty Pydantic model on total failure to prevent pipeline crashes.
+
 ## Review Checklist
 Before approving an agentic workflow design, verify:
 - [ ] All retry loops have a hard numeric limit and a quarantine fallback.
 - [ ] LLM outputs feeding deterministic logic are validated for type and range bounds.
+- [ ] **LLM JSON generation uses `response_format={"type": "json_object"}`, strict prompting, and a regex extraction fallback.**
 - [ ] Scrapers handle session state (ViewState/CSRF) and anti-bot evasion.
 - [ ] Enrichment has explicit allowlists and `blocked_by_anti_bot` fallbacks.
 - [ ] Checkpointing is persisted to disk (SQLite/DuckDB), not memory.

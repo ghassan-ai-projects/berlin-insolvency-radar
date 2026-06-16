@@ -1,5 +1,7 @@
 """Unit tests for official portal source adapter parsing."""
 
+from datetime import date
+
 import pytest
 from biradar.sources.official_portal import OfficialPortalAdapter
 
@@ -37,7 +39,7 @@ def test_parse_response_extracts_jsf_table_data():
     assert record["legal_form"] == "GmbH"
     assert record["court"] == "Amtsgericht Charlottenburg"
     assert record["case_number"] == "36e IN 123/26"
-    assert record["publication_date"] == "15.06.2026"
+    assert record["publication_date"] == "2026-06-15"
     assert record["proceeding_stage"] == "Eröffnungsbeschluss"
     assert "Test Berlin GmbH" in record["raw_text"]
 
@@ -77,3 +79,55 @@ def test_parse_response_handles_leading_comments_before_xml_declaration():
     records = adapter._parse_response(xml_with_comment)
     assert len(records) == 1
     assert records[0]["company_name"] == "Alpha UG"
+
+
+@pytest.mark.anyio
+async def test_fetch_date_range_stops_retry_on_anti_bot(monkeypatch):
+    attempts = {"post": 0}
+
+    async def fake_sleep(*args, **kwargs):
+        return None
+
+    class FakeResponse:
+        def __init__(self, status_code: int, text: str):
+            self.status_code = status_code
+            self.text = text
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError("should not be called for anti-bot branch")
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse(
+                200,
+                '<form id="frm_suche" action="/ap/suche.jsf">'
+                '<input name="jakarta.faces.ViewState" value="state123" />'
+                "</form>",
+            )
+
+        async def post(self, *args, **kwargs):
+            attempts["post"] += 1
+            return FakeResponse(403, "cloudflare blocked")
+
+    monkeypatch.setattr("biradar.sources.official_portal.httpx.AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr("biradar.sources.official_portal.asyncio.sleep", fake_sleep)
+
+    adapter = OfficialPortalAdapter(db=None)
+    result = await adapter.fetch_date_range(
+        start_date=date(2026, 6, 10),
+        end_date=date(2026, 6, 16),
+        dry_run=True,
+    )
+    assert result["status"] == "failed"
+    assert result["errors"] == ["blocked_by_anti_bot"]
+    assert attempts["post"] == 1

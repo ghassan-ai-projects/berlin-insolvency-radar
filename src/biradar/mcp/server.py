@@ -310,7 +310,7 @@ def call_radar_tool(
 
         if name == "radar_list_source_runs":
             params = ListSourceRunsInput(**args)
-            runs = container.health.source_run_repo.list_runs(
+            runs = container.health.source_repo.list_runs(
                 source_id=params.source_id,
                 status=params.status,
                 limit=params.limit,

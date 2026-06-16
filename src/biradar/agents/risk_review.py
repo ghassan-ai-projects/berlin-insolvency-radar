@@ -58,42 +58,60 @@ def review_candidate_risk(
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in ("1", "true", "yes")
     
-    if not api_key:
-        logger.warning("DEEPSEEK_API_KEY not set. Risk review passing by default (mock).")
+    if not api_key or use_mock:
+        logger.warning("DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Risk review passing by default (mock).")
         return RiskReviewResult(
             passed_review=True,
             confidence_in_review=0.5
         )
 
     try:
-        # DeepSeek is fully OpenAI API compatible
+        # Force JSON mode at the API level for providers that support it (like DeepSeek)
         llm = ChatOpenAI(
             openai_api_key=api_key,
             openai_api_base=api_base,
             model=model_name,
-            temperature=0.0
+            temperature=0.0,
+            model_kwargs={"response_format": {"type": "json_object"}}
         )
-        structured_llm = llm.with_structured_output(RiskReviewResult)
-        
+
         review_context = (
             f"Candidate Data: {json.dumps(candidate_data, default=str)}\n"
             f"Extraction Data: {json.dumps(extraction_data, default=str)}\n"
             f"Enrichment Data: {json.dumps(enrichment_data, default=str)}\n"
             f"Draft Thesis: {draft_thesis}"
         )
-        
-        prompt_template = PromptTemplate.from_template(
-            load_prompt("risk_review") + "\n\nCandidate Context:\n{context}"
-        )
-        
-        chain = prompt_template | structured_llm
-        result = chain.invoke({"context": review_context})
-        
-        return result
+
+        base_prompt = load_prompt("risk_review")
+        safe_prompt = base_prompt.replace("{", "{{").replace("}", "}}")
+        safe_prompt = safe_prompt.replace("{{context}}", "{context}")
+        full_prompt = safe_prompt + "\n\nCandidate Context:\n{context}\n\nIMPORTANT: Respond ONLY with a valid JSON object. Do not include markdown formatting or any other text."
+        prompt_template = PromptTemplate.from_template(full_prompt)
+
+        try:
+            structured_llm = llm.with_structured_output(RiskReviewResult)
+            chain = prompt_template | structured_llm
+            result = chain.invoke({"context": review_context})
+            return result
+        except Exception as structured_err:
+            logger.warning(f"Structured output failed, falling back to manual JSON parse: {structured_err}")
+            response = llm.invoke(full_prompt.format(context=review_context))
+            content = response.content if hasattr(response, "content") else str(response)
+            
+            # Robust JSON extraction: find the first valid JSON object/array
+            import re
+            json_match = re.search(r'\{.*\}|\[.*\]', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = content.strip()
+                
+            parsed = json.loads(json_str)
+            return RiskReviewResult(**parsed)
     except Exception as e:
         logger.error(f"Risk review failed: {e}")
-        # Fail closed: if review fails, we quarantine to be safe
         return RiskReviewResult(
             passed_review=False,
             rejection_reasons=[f"Review system error: {str(e)}"],

@@ -8,8 +8,9 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 import json
 import hashlib
+import tempfile
 
-from biradar.config.settings import get_settings
+from biradar.config.settings import get_settings, load_config
 from biradar.graph.phase2_workflow import build_phase2_workflow
 from biradar.graph.checkpoints import CheckpointManager
 from biradar.sources.official_portal import OfficialPortalAdapter
@@ -177,6 +178,8 @@ def run_phase2_pipeline(
     end_date: date,
     dry_run: bool = False,
     thread_id: str = "phase2_default",
+    db_path: str | Path | None = None,
+    source_mode: str | None = None,
 ) -> dict:
     """
     Execute the Phase 2 agentic workflow.
@@ -200,11 +203,13 @@ def run_phase2_pipeline(
         logger.warning("DEEPSEEK_API_KEY not set. LLM agents will operate in mock/fallback mode.")
     
     settings = get_settings()
-    db_path = settings.data_dir / "radar.duckdb"
+    target_db_path = Path(db_path) if db_path else settings.data_dir / "radar.duckdb"
+    official_source_cfg = load_config(settings.project_root / "config").sources.get("official_insolvency_berlin")
+    effective_source_mode = source_mode or (official_source_cfg.mode if official_source_cfg else "normal")
     
     # 1. Initialize Database (skip if dry_run, though we might still want schema)
     if not dry_run:
-        db = Database(db_path)
+        db = Database(target_db_path)
         db.run_migrations()
         checkpoint_db_path = settings.data_dir / "checkpoints.sqlite"
     else:
@@ -218,6 +223,26 @@ def run_phase2_pipeline(
     # 3. Acquire source data before graph execution.
     if dry_run:
         source_run_id, raw_records = _load_dry_run_records(settings)
+    elif effective_source_mode == "fixture":
+        fixture_path = (
+            Path(official_source_cfg.path)
+            if official_source_cfg and official_source_cfg.path
+            else settings.project_root / "tests" / "fixtures" / "official_portal" / "sample_response.html"
+        )
+        fetch_result = OfficialPortalAdapter(db).fetch_fixture_date_range(
+            fixture_path=str(fixture_path),
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=False,
+        )
+        if fetch_result["status"] != "completed":
+            return {
+                "status": "failed",
+                "error": "Official portal fixture acquisition failed",
+                "errors": fetch_result.get("errors", []),
+            }
+        source_run_id = fetch_result["source_run_id"]
+        raw_records = fetch_result.get("records", [])
     else:
         fetch_result = asyncio_run(
             OfficialPortalAdapter(db).fetch_date_range(
@@ -234,6 +259,22 @@ def run_phase2_pipeline(
             }
         source_run_id = fetch_result["source_run_id"]
         raw_records = fetch_result.get("records", [])
+
+    if not dry_run:
+        AuditRepository(db).log_event(
+            actor="system:phase2_pipeline",
+            action="phase2_acquisition_completed" if raw_records is not None else "phase2_acquisition_attempted",
+            entity_type="source_run",
+            entity_id=source_run_id,
+            request_data={
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "source_mode": effective_source_mode,
+            },
+            result_data={
+                "raw_records": len(raw_records),
+            },
+        )
 
     # 4. Build and Compile Workflow
     workflow = build_phase2_workflow().compile(checkpointer=checkpoint_mgr.saver_instance)
@@ -287,3 +328,45 @@ def run_phase2_pipeline(
     finally:
         # Cleanup checkpoint connection if needed, or keep alive for app lifecycle
         pass
+
+
+def run_phase2_check() -> dict:
+    """Run a full local Phase 2 verification pass against fixture-backed acquisition."""
+    start_date = date(2026, 6, 10)
+    end_date = date(2026, 6, 16)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        db_path = tmp_path / "phase2_check.duckdb"
+        first = run_phase2_pipeline(
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=False,
+            thread_id="phase2_check_first",
+            db_path=db_path,
+            source_mode="fixture",
+        )
+        second = run_phase2_pipeline(
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=False,
+            thread_id="phase2_check_second",
+            db_path=db_path,
+            source_mode="fixture",
+        )
+        db = Database(db_path)
+        try:
+            counts = {
+                "source_runs": db.conn.execute("SELECT COUNT(*) FROM source_runs").fetchone()[0],
+                "raw_records": db.conn.execute("SELECT COUNT(*) FROM raw_records").fetchone()[0],
+                "candidates": db.conn.execute("SELECT COUNT(*) FROM candidates").fetchone()[0],
+                "publish_ready": db.conn.execute("SELECT COUNT(*) FROM candidates WHERE status = 'publish_ready'").fetchone()[0],
+                "issues": db.conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0],
+            }
+        finally:
+            db.close()
+        return {
+            "status": "success" if first["status"] == "success" and second["status"] == "success" else "failed",
+            "first_run": first,
+            "second_run": second,
+            "counts": counts,
+        }

@@ -1,9 +1,26 @@
 """Repository layer for database operations. Centralizes all DuckDB access."""
 
 import json
+import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validate_date_field(value: str | None) -> str | None:
+    """Validate a string is a proper ISO date before passing to DuckDB DATE column."""
+    if value is None:
+        return None
+    if _ISO_DATE_RE.match(value):
+        return value
+    logger.warning("Invalid date value %r for DATE column; coercing to None", value)
+    return None
 
 from biradar.storage.db import Database
 
@@ -173,6 +190,8 @@ class CandidateRepository:
         now = datetime.now(UTC).isoformat()
         risk_flags_json = json.dumps(risk_flags) if risk_flags else None
 
+        validated_pub_date = _validate_date_field(publication_date)
+
         self.db.conn.execute(
             """
             INSERT INTO candidates
@@ -190,7 +209,7 @@ class CandidateRepository:
                 court,
                 case_number,
                 register_number,
-                publication_date,
+                validated_pub_date,
                 publication_type,
                 status,
                 source_quality,
@@ -386,7 +405,7 @@ class SourceRunRepository:
     ) -> None:
         """Mark a source run as completed or failed."""
         now = datetime.now(UTC).isoformat()
-        status = "failed" if error_json else "success"
+        status = "failed" if error_json else "completed"
         self.db.conn.execute(
             """
             UPDATE source_runs

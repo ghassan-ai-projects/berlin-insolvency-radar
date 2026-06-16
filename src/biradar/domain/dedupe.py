@@ -1,7 +1,6 @@
 """Deterministic deduplication logic for candidates."""
 
 import hashlib
-import uuid
 from typing import Any
 
 
@@ -60,7 +59,7 @@ def deduplicate_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, A
             candidate["canonical_candidate_id"] = seen_keys[key]
         else:
             # First time seeing this key, mark as canonical
-            seen_keys[key] = candidate.get("candidate_id", str(uuid.uuid4()))
+            seen_keys[key] = candidate.get("candidate_id", key.replace("dedupe_", "cand_"))
             candidate["candidate_id"] = seen_keys[key]
             candidate["status"] = "deduped_candidate"
             

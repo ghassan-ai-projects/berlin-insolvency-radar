@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+import re
+
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
@@ -62,9 +64,10 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in ("1", "true", "yes")
     
-    if not api_key:
-        logger.warning("DEEPSEEK_API_KEY not set. Returning mock extraction result.")
+    if not api_key or use_mock:
+        logger.warning("DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Returning mock extraction result.")
         # Fallback mock for development/testing
         return ExtractionResult(
             company_name="Mock GmbH",
@@ -79,24 +82,42 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
         )
 
     try:
-        # DeepSeek is fully OpenAI API compatible
+        # Force JSON mode at the API level for providers that support it (like DeepSeek)
         llm = ChatOpenAI(
             openai_api_key=api_key,
             openai_api_base=api_base,
             model=model_name,
-            temperature=0.0
+            temperature=0.0,
+            model_kwargs={"response_format": {"type": "json_object"}}
         )
-        structured_llm = llm.with_structured_output(ExtractionResult)
-        
-        prompt_template = PromptTemplate.from_template(
-            load_prompt("extraction") + "\n\nRaw Notice Text:\n{text}\nSource URL: {source_url}"
-        )
-        
-        chain = prompt_template | structured_llm
-        result = chain.invoke({"text": raw_text, "source_url": source_url})
-        
-        return result
+
+        base_prompt = load_prompt("extraction")
+        # Ensure the prompt explicitly demands pure JSON to prevent markdown chatter
+        safe_prompt = base_prompt.replace("{", "{{").replace("}", "}}")
+        safe_prompt = safe_prompt.replace("{{text}}", "{text}").replace("{{source_url}}", "{source_url}")
+        full_prompt = safe_prompt + "\n\nRaw Notice Text:\n{text}\nSource URL: {source_url}\n\nIMPORTANT: Respond ONLY with a valid JSON object. Do not include markdown formatting or any other text."
+        prompt_template = PromptTemplate.from_template(full_prompt)
+
+        try:
+            structured_llm = llm.with_structured_output(ExtractionResult)
+            chain = prompt_template | structured_llm
+            result = chain.invoke({"text": raw_text, "source_url": source_url})
+            return result
+        except Exception as structured_err:
+            logger.warning(f"Structured output failed, falling back to manual JSON parse: {structured_err}")
+            response = llm.invoke(full_prompt.format(text=raw_text, source_url=source_url))
+            content = response.content if hasattr(response, "content") else str(response)
+            
+            # Robust JSON extraction: find the first valid JSON object/array
+            import re
+            json_match = re.search(r'\{.*\}|\[.*\]', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = content.strip()
+                
+            parsed = json.loads(json_str)
+            return ExtractionResult(**parsed)
     except Exception as e:
         logger.error(f"Extraction failed: {e}")
-        # Return a safe, empty result on failure to prevent pipeline crash
         return ExtractionResult(is_consumer_likely=True)

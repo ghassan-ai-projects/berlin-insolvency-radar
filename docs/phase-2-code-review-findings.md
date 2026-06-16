@@ -2,14 +2,15 @@
 
 **Date:** 2026-06-16  
 **Reviewer:** Codex  
-**Verdict:** Phase 2 is materially improved and test-green for the local fixture-backed path, but live-complete status is still gated by environment-dependent verification.
+**Verdict:** Phase 2 is locally verified end to end for the fixture-backed path, with live-complete status still gated by environment-dependent verification.
 
 ## Verification Performed
 
 - Ran `uv run pytest`
-- Result: `47 passed`
+- Result: `54 passed`
 - Verified `biradar mcp-info` builds and exposes the Phase 2 MCP tool surface without outbound notification tooling
 - Verified `radar_run_phase2_workflow` through the MCP execution path with `dry_run=true`
+- Verified `uv run biradar phase2-check` passes against a temporary DuckDB using fixture-backed acquisition
 
 ## Issues Found And Fixed In This Round
 
@@ -76,15 +77,44 @@
   - exported issue rows and issue-candidate links
   - audit events
 
+### 15. Repeated Phase 2 runs were not idempotent at candidate level
+- **Finding:** Candidate IDs were random when the workflow created canonical candidates, so repeated runs over the same record window produced duplicate candidate rows.
+- **Fix:** Canonical candidate IDs now derive from the deterministic dedupe key when no candidate ID exists, making candidate persistence stable across repeated runs.
+
+### 16. There was no persisted fixture-backed verification path for Phase 2
+- **Finding:** The existing dry-run path only proved the transient graph path and did not verify source-run persistence, issue persistence, MCP source-run inspection, or repeat-run behavior.
+- **Fix:** Added:
+  - fixture-backed non-dry-run acquisition
+  - `biradar phase2-check`
+  - E2E coverage for persisted fixture-backed runs
+  - MCP E2E coverage for `radar_list_source_runs` and `radar_run_phase2_workflow`
+
+### 17. Risk review did not automatically reject unsupported enrichment claims
+- **Finding:** Unsupported non-inference enrichment claims could survive to later stages if they lacked evidence URLs.
+- **Fix:** Added deterministic pre-LLM risk-review checks that quarantine candidates with unsupported enrichment claims or missing extraction evidence, and record the reason in workflow state.
+
+### 18. Export artifacts did not carry a structured run summary or explicit content separation
+- **Finding:** Markdown and JSON exports lacked a run/audit summary and did not explicitly separate facts, inferences, and editorial context.
+- **Fix:** Added:
+  - `audit_summary` metadata to the issue draft and JSON package
+  - Markdown run summary output
+  - explicit `content_sections.facts`, `content_sections.inferences`, and `content_sections.editorial` per exported candidate
+  - artifact assertions in E2E tests
+
+### 19. Anti-bot handling was implemented but not verified directly
+- **Finding:** The source adapter had a `blocked_by_anti_bot` branch, but there was no test proving retries stop after a 403/Cloudflare response.
+- **Fix:** Added a unit test for `fetch_date_range(...)` that simulates a 403/Cloudflare response and verifies the adapter stops after the first blocked attempt.
+
 ## Current Status
 
 The codebase now satisfies the following local verification bar:
 
 - Phase 0 and Phase 1 suites still pass after the Phase 2 changes
 - Phase 2 dry-run uses real parsed fixture input instead of an empty placeholder state
+- Phase 2 fixture-backed persisted runs now verify source-run creation, raw-record persistence, candidate persistence, issue persistence, and repeat-run idempotency
 - The MCP surface no longer exposes outbound notification behavior
 - The Phase 2 workflow can be invoked from CLI, direct service call, and MCP
-- The full repo test suite passes
+- The full repo test suite passes (`54 passed`, `87%` coverage)
 
 ## Remaining Gaps Before Calling Phase 2 Fully Complete
 
