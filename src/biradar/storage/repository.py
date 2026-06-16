@@ -703,3 +703,59 @@ class IssueRepository:
             return None
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
+
+
+class EnrichmentRepository:
+    """Repository for enrichment data persistence."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def save_enrichment(
+        self,
+        candidate_id: str,
+        sector: str | None = None,
+        employee_count_range: str | None = None,
+        funding_info: str | None = None,
+        tech_stack: str | None = None,
+        website_url: str | None = None,
+        website_status: str | None = None,
+        github_org: str | None = None,
+        patent_count: int = 0,
+    ) -> str:
+        """Insert an enrichment record and return its ID."""
+        enrichment_id = f"enrich_{uuid.uuid4().hex}"
+        now = datetime.now(UTC).isoformat()
+
+        self.db.conn.execute(
+            """
+            INSERT INTO enrichments
+            (id, candidate_id, sector, employee_count_range, funding_info,
+             tech_stack, website_url, website_status, github_org,
+             patent_count, enriched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                enrichment_id, candidate_id, sector, employee_count_range,
+                funding_info, tech_stack, website_url,
+                str(website_status) if website_status else None, github_org,
+                patent_count, now,
+            ],
+        )
+        return enrichment_id
+
+    def get_enrichment(self, candidate_id: str) -> dict[str, Any] | None:
+        """Get the most recent enrichment for a candidate."""
+        cursor = self.db.conn.execute(
+            """
+            SELECT * FROM enrichments
+            WHERE candidate_id = ?
+            ORDER BY enriched_at DESC LIMIT 1
+            """,
+            [candidate_id],
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        columns = [desc[0] for desc in cursor.description]
+        return dict(zip(columns, row))

@@ -93,11 +93,11 @@ The product is now ready for fixture-backed editorial use: import records, inspe
 The implementation is Phase 1 complete, but still intentionally scoped:
 
 - No live official-portal scraper is enabled.
-- No enrichment APIs or LLM-driven extraction are enabled.
+- ~~No enrichment APIs or LLM-driven extraction are enabled.~~ **Updated 2026-06-16:** Multi-source enrichment (Bundesanzeiger, GitHub, company website, Handelsregister) is now implemented in Phase 2 via `src/biradar/sources/enrichment.py`. Gated behind `BI_RADAR_ENRICH_REAL=1`.
 - No external publishing is enabled.
 - Integration tests remain represented by acceptance tests rather than a separate `tests/integration` suite.
 
-Those are appropriate boundaries for Phase 1 and should move into Phase 2 work only when the official scraper/enrichment pipeline begins.
+Those were appropriate boundaries for Phase 1. Enrichment has since been implemented in Phase 2.
 
 ---
 

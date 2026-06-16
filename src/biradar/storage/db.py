@@ -38,6 +38,7 @@ class Database:
         migrations = [
             ("001_core_tables", self._create_core_tables),
             ("002_audit_table", self._create_audit_table),
+            ("003_enrichments", self._create_enrichments_table),
         ]
 
         for name, migration_fn in migrations:
@@ -192,6 +193,24 @@ class Database:
                 request_json VARCHAR,
                 result_json VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+    def _create_enrichments_table(self) -> None:
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS enrichments (
+                id VARCHAR PRIMARY KEY,
+                candidate_id VARCHAR NOT NULL,
+                sector VARCHAR,
+                employee_count_range VARCHAR,
+                funding_info VARCHAR,
+                tech_stack VARCHAR,
+                website_url VARCHAR,
+                website_status VARCHAR,
+                github_org VARCHAR,
+                patent_count INTEGER DEFAULT 0,
+                enriched_at VARCHAR NOT NULL,
+                FOREIGN KEY (candidate_id) REFERENCES candidates(candidate_id)
             );
         """)
 

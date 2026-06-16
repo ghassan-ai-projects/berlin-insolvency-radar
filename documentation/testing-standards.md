@@ -49,6 +49,11 @@ When `BI_RADAR_USE_MOCK_AGENTS=true` or `DEEPSEEK_API_KEY` is unset:
 - `review_candidate_risk()` returns `passed_review=True, confidence=0.5`
 - All tests in `tests/unit/` and `tests/acceptance/` run in mock mode by default
 
+**Enrichment** has its own gate: when `BI_RADAR_ENRICH_REAL` is unset or `"0"`,
+`enrich_candidate()` returns mock data (`sector: "Unknown"`). Set `BI_RADAR_ENRICH_REAL=1`
+to contact the 4 live sources (Bundesanzeiger, GitHub, company website, Handelsregister).
+All enrichment unit tests mock HTTP; no network is required in CI.
+
 ## Phase Acceptance Gates
 
 Each development phase has defined acceptance tests:

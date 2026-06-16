@@ -58,7 +58,7 @@
 - [ ] Build fresh official-portal scraper in this repo, after MCP v0 is stable
 - [ ] Keep source-run logs, parse errors, retries, and idempotent dedupe
 - [ ] Add scheduled local runs with durable workflow state and restart safety
-- [ ] Add a fully agentic extraction, enrichment, scoring, risk-review, and draft-assembly workflow without requiring human review
+- [x] Add a fully agentic extraction, enrichment, scoring, risk-review, and draft-assembly workflow without requiring human review
 - [ ] Use only official and free/public sources in this phase; no paid APIs, no paid datasets
 - [ ] Keep deterministic compliance, quarantine, evidence, and export gates
 - [ ] Export complete local issue artifacts: Markdown, structured JSON, and run/audit summary

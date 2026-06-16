@@ -17,3 +17,8 @@ sources:
       bundesland: "Berlin"
       date_window_days: 1
       backfill_days_on_first_run: 14
+
+enrichment:
+  enabled: false  # BI_RADAR_ENRICH_REAL=1 to activate
+  timeout_seconds: 10
+  delay_between_sources: 0.3

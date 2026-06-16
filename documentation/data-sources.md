@@ -30,13 +30,19 @@ The `OfficialPortalAdapter` uses JSF session management:
 | InsolvenzIndex | Freemium | Germany | Free tier available |
 | OpenRegister | Free | Company registry basics | Free |
 
-## Enrichment Sources (Future)
+## Enrichment Sources
+
+Multi-source enrichment is implemented in `src/biradar/sources/enrichment.py`.
+Each source is contacted sequentially with error isolation — a single failure
+does not abort the pipeline. Set `BI_RADAR_ENRICH_REAL=1` to activate.
 
 | Source | Data | Status |
 |--------|------|--------|
-| Handelsregister.de | Company registration details | Blocked by anti-bot on free tier |
-| Unternehmensregister.de | Annual financial statements | Blocked by anti-bot on free tier |
-| Bundesanzeiger | Official publications | Accessible, not yet integrated |
+| Bundesanzeiger | Annual reports, balance sheets, revenue estimates | Integrated |
+| GitHub API | Organisation lookup, repos, stars, languages | Integrated (no auth) |
+| Company Website | Homepage title, meta description, tech stack signals | Integrated |
+| Handelsregister.de | Company registration details (legal form, court, HRB) | Integrated (may be blocked by anti-bot on free tier) |
+| Unternehmensregister.de | Annual financial statements | Not yet integrated |
 
 ## Source Quality Model
 

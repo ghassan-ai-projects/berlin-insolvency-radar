@@ -40,7 +40,7 @@ The first implementation should expose only these tools:
 | `radar_export_issue` | Write draft to local export file | Yes |
 | `radar_audit_trail` | Explain what happened | No |
 
-Everything else in this document is v1+. Do not implement enrichment agents, official scraper, vendor bakeoff, alerts, or publishing until v0 is pleasant to use.
+Everything else in this document is v1+. The enrichment agents are now implemented (see `src/biradar/sources/enrichment.py`). Do not implement vendor bakeoff, alerts, or publishing until v0 is pleasant to use.
 
 ### Happy Path For OpenClaw
 

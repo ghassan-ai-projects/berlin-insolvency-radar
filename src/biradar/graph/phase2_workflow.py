@@ -15,8 +15,38 @@ from biradar.domain.dedupe import deduplicate_candidates
 from biradar.domain.scoring import ScoreInput, compute_score
 from biradar.graph.state import Phase2WorkflowState
 from biradar.output.export import generate_json_package, generate_markdown_draft
+from biradar.sources.enrichment import enrich_candidate
 
 logger = logging.getLogger(__name__)
+
+
+def _build_enrichment_claims(result) -> list[dict]:
+    """Build claims list from an EnrichmentResult for the enrichment_results state."""
+    claims: list[dict] = []
+    for src in result.sources:
+        source_name = src.get("source", "unknown")
+        source_url = src.get("url") or None
+        for field in ("sector", "legal_form", "registry_court", "registry_number",
+                      "company_status", "tech_stack", "github_org", "funding_info"):
+            val = src.get(field)
+            if val and val != "Unknown":
+                claims.append({
+                    "field": field,
+                    "value": str(val),
+                    "classification": "verified",
+                    "source_url": source_url,
+                    "note": f"From {source_name}",
+                })
+    if not claims and result.sector:
+        claims.append({
+            "field": "sector",
+            "value": "Unknown",
+            "classification": "inference",
+            "source_url": None,
+            "note": "No verified free/public enrichment source returned "
+                    "a stronger claim in local mode.",
+        })
+    return claims
 
 
 def ingest_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
@@ -103,6 +133,7 @@ def enrichment_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         if candidate["status"] == "quarantined":
             continue
         cid = candidate.get("candidate_id", "unknown")
+
         if candidate.get("enrichment_http_status") == 403 or candidate.get(
             "enrichment_blocked"
         ):
@@ -114,19 +145,35 @@ def enrichment_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             }
             continue
 
+        company_name = candidate.get("company_name", "")
+        if not company_name:
+            enrichment_results[cid] = {
+                "enriched": False,
+                "status": "skipped",
+                "claims": [],
+                "note": "No company name available for enrichment",
+            }
+            continue
+
+        # Run enrichment (mock or real, gated by BI_RADAR_ENRICH_REAL)
+        result = enrich_candidate(company_name)
         enrichment_results[cid] = {
-            "enriched": True,
-            "status": "success",
-            "claims": [
-                {
-                    "field": "sector",
-                    "value": "Unknown",
-                    "classification": "inference",
-                    "source_url": None,
-                    "note": "No verified free/public enrichment source returned a stronger claim in local mode.",
-                }
-            ],
-            "data": {"sector": "Unknown"},
+            "enriched": result.enriched,
+            "status": "success" if result.enriched else "failed",
+            "claims": _build_enrichment_claims(result),
+            "data": {
+                "sector": result.sector,
+                "tech_stack": result.tech_stack,
+                "website_url": result.website_url,
+                "website_status": result.website_status,
+                "github_org": result.github_org,
+                "funding_info": result.funding_info,
+                "legal_form": result.legal_form,
+                "registry_court": result.registry_court,
+                "registry_number": result.registry_number,
+                "company_status": result.company_status,
+            },
+            "errors": result.errors,
         }
     state["enrichment_results"] = enrichment_results
     state["current_step"] = "scoring"
