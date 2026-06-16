@@ -1,5 +1,6 @@
 """Typed configuration loading for the application."""
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -53,11 +54,19 @@ class SourceConfig(BaseModel):
     path: str | None = None
 
 
+class EnrichmentConfig(BaseModel):
+    enabled: bool = False
+    timeout_seconds: float = Field(default=10.0, gt=0)
+    delay_between_sources: float = Field(default=0.3, ge=0.0)
+
+
 class AppConfig(BaseModel):
     scoring: ScoringConfig
     sources: dict[str, SourceConfig]
+    enrichment: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
 
 
+@lru_cache(maxsize=4)
 def load_config(config_dir: Path | str) -> AppConfig:
     """Load and validate application configuration from YAML files."""
     config_path = Path(config_dir)
@@ -81,5 +90,6 @@ def load_config(config_dir: Path | str) -> AppConfig:
         name: SourceConfig(**data)
         for name, data in sources_data.get("sources", {}).items()
     }
+    enrichment = EnrichmentConfig(**sources_data.get("enrichment", {}))
 
-    return AppConfig(scoring=scoring, sources=sources)
+    return AppConfig(scoring=scoring, sources=sources, enrichment=enrichment)

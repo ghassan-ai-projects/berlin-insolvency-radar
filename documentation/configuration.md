@@ -16,7 +16,6 @@
 | `DEEPSEEK_API_KEY` | For LLM features | *(none)* | DeepSeek API key |
 | `DEEPSEEK_API_BASE` | No | `https://api.deepseek.com/v1` | DeepSeek API base URL |
 | `DEEPSEEK_MODEL` | No | `deepseek-chat` | Model name for LLM calls |
-| `BI_RADAR_USE_MOCK_AGENTS` | No | *(false)* | Set to `true`/`1` for mock LLM mode |
 
 ## Scoring Configuration (`config/scoring.yaml`)
 
@@ -53,6 +52,20 @@ sources:
 
 - `mode: normal` — live scraping
 - `mode: fixture` — use fixture HTML for testing
+
+### Enrichment Configuration
+
+`config/sources.yaml` also contains:
+
+```yaml
+enrichment:
+  enabled: true
+  timeout_seconds: 10
+  delay_between_sources: 0.3
+```
+
+- `enabled: true` — live enrichment is active
+- `enabled: false` — enrichment is skipped without substituting fake data
 
 ## Settings (Programmatic)
 

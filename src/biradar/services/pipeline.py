@@ -1,18 +1,21 @@
-"""Service for executing the Phase 2 fully agentic pipeline."""
+"""Service entrypoints for the production workflow pipeline."""
 
 import hashlib
 import json
-import os
 import tempfile
 import uuid
 from asyncio import run as asyncio_run
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 
+from biradar.agents.extraction import ExtractionResult
+from biradar.agents.risk_review import RiskReviewResult
 from biradar.config.settings import get_settings, load_config
 from biradar.graph.checkpoints import CheckpointManager
-from biradar.graph.phase2_workflow import build_phase2_workflow
+from biradar.graph.pipeline_workflow import build_pipeline_workflow
 from biradar.observability.logging import get_logger
+from biradar.sources.enrichment import EnrichmentResult
 from biradar.sources.official_portal import OfficialPortalAdapter
 from biradar.storage.db import Database
 from biradar.storage.repository import (
@@ -27,8 +30,8 @@ from biradar.storage.repository import (
 logger = get_logger(__name__)
 
 
-def _load_dry_run_records(settings) -> tuple[str, list[dict]]:
-    """Load fixture-backed source data for dry-run execution."""
+def _load_fixture_records(settings: Any) -> tuple[str, list[dict[str, Any]]]:
+    """Load fixture-backed source data for validation execution."""
     fixture_path = (
         settings.project_root
         / "tests"
@@ -38,15 +41,78 @@ def _load_dry_run_records(settings) -> tuple[str, list[dict]]:
     )
     adapter = OfficialPortalAdapter(db=None)
     records = adapter._parse_response(fixture_path.read_text(encoding="utf-8"))
-    return "dry_run_fixture", records
+    return "fixture_validation_run", records
 
 
-def _persist_phase2_results(
+def _stub_extractor(raw_text: str, source_url: str) -> ExtractionResult:
+    return ExtractionResult(
+        company_name="Test Berlin GmbH",
+        legal_form="GmbH",
+        court="Amtsgericht Charlottenburg",
+        case_number="36e IN 123/26",
+        filing_date="2026-06-15",
+        proceeding_stage="Eroeffnungsbeschluss",
+        is_consumer_likely=False,
+        field_confidence_scores={"company_name": 0.95, "case_number": 0.93},
+        evidence_snippets={
+            "company_name": "Test Berlin GmbH",
+            "case_number": "36e IN 123/26",
+        },
+    )
+
+
+def _stub_risk_reviewer(
+    candidate_data: dict[str, Any],
+    extraction_data: dict[str, Any],
+    enrichment_data: dict[str, Any],
+    draft_thesis: str,
+) -> RiskReviewResult:
+    return RiskReviewResult(
+        passed_review=True,
+        rejection_reasons=None,
+        actionable_feedback_for_analyst=None,
+        flagged_unsupported_claims=[],
+        confidence_in_review=0.88,
+    )
+
+
+def _stub_enricher(company_name: str) -> EnrichmentResult:
+    return EnrichmentResult(
+        company_name=company_name,
+        sources=[
+            {
+                "source": "validation_stub",
+                "url": "https://example.com/company",
+                "registry_number": "HRB 123456 B",
+                "registry_court": "Amtsgericht Charlottenburg",
+                "legal_form": "GmbH",
+                "company_status": "active",
+                "tech_stack": "Python, FastAPI",
+                "github_org": "test-berlin",
+                "funding_info": "Reports available",
+            }
+        ],
+        errors=[],
+        enriched=True,
+        sector="Legal form: GmbH",
+        tech_stack="Python, FastAPI",
+        website_url="https://example.com/company",
+        website_status=200,
+        github_org="test-berlin",
+        funding_info="Reports available",
+        legal_form="GmbH",
+        registry_court="Amtsgericht Charlottenburg",
+        registry_number="HRB 123456 B",
+        company_status="active",
+    )
+
+
+def _persist_results(
     db: Database,
-    final_state: dict,
+    final_state: dict[str, Any],
     export_path: str | None,
 ) -> str | None:
-    """Persist successful Phase 2 workflow outputs into DuckDB-owned product state."""
+    """Persist successful workflow outputs into DuckDB-owned product state."""
     candidate_repo = CandidateRepository(db)
     evidence_repo = EvidenceRepository(db)
     score_repo = ScoreRepository(db)
@@ -78,7 +144,7 @@ def _persist_phase2_results(
                 candidate_id=candidate_id,
                 raw_record_id=candidate["raw_record_id"],
                 match_confidence=1.0,
-                match_reason="phase2_ingest",
+                match_reason="pipeline_ingest",
             )
 
         extraction_result = final_state.get("extraction_results", {}).get(
@@ -122,7 +188,7 @@ def _persist_phase2_results(
                 category=score_payload["category"],
                 rationale_json=json.dumps(score_payload.get("rationale", {})),
                 status="approved",
-                reviewer="system:phase2_scoring",
+                reviewer="system:pipeline_scoring",
             )
 
         risk_payload = final_state.get("risk_reviews", {}).get(candidate_id)
@@ -140,8 +206,8 @@ def _persist_phase2_results(
             )
 
         audit_repo.log_event(
-            actor="system:phase2_pipeline",
-            action="phase2_candidate_processed",
+            actor="system:pipeline",
+            action="pipeline_candidate_processed",
             entity_type="candidate",
             entity_id=candidate_id,
             result_data={
@@ -162,14 +228,13 @@ def _persist_phase2_results(
     issue_title = final_state.get("issue_draft", {}).get(
         "title", "Weekly Berlin Insolvency Radar"
     )
-    draft_markdown = Path(export_path).read_text(encoding="utf-8")
     issue_repo.create_issue(
         issue_id=issue_id,
         week=datetime.now(UTC).strftime("%G-W%V"),
         tier="free",
         title=issue_title,
-        draft_markdown=draft_markdown,
-        created_by="system:phase2_pipeline",
+        draft_markdown=Path(export_path).read_text(encoding="utf-8"),
+        created_by="system:pipeline",
     )
     for rank, candidate in enumerate(publish_ready_candidates, start=1):
         candidate_id = candidate["candidate_id"]
@@ -182,8 +247,8 @@ def _persist_phase2_results(
         )
     issue_repo.mark_exported(issue_id, export_path)
     audit_repo.log_event(
-        actor="system:phase2_pipeline",
-        action="phase2_issue_exported",
+        actor="system:pipeline",
+        action="pipeline_issue_exported",
         entity_type="issue",
         entity_id=issue_id,
         result_data={"export_path": export_path},
@@ -191,28 +256,20 @@ def _persist_phase2_results(
     return issue_id
 
 
-def run_phase2_pipeline(
+def run_pipeline(
     start_date: date,
     end_date: date,
     dry_run: bool = False,
-    thread_id: str = "phase2_default",
+    thread_id: str = "pipeline_default",
     db_path: str | Path | None = None,
     source_mode: str | None = None,
-) -> dict:
-    """
-    Execute the Phase 2 agentic workflow.
-
-    Args:
-        start_date: Start of the scrape window.
-        end_date: End of the scrape window.
-        dry_run: If True, do not persist to DuckDB.
-        thread_id: LangGraph thread ID for checkpointing/resume.
-
-    Returns:
-        Execution summary and export paths.
-    """
+    extractor: Any | None = None,
+    risk_reviewer: Any | None = None,
+    enricher: Any | None = None,
+) -> dict[str, Any]:
+    """Execute the agentic workflow pipeline."""
     logger.info(
-        "Starting Phase 2 pipeline execution",
+        "Starting pipeline execution",
         extra={
             "start_date": str(start_date),
             "end_date": str(end_date),
@@ -220,134 +277,116 @@ def run_phase2_pipeline(
         },
     )
 
-    # Warn if no API key is present (agents will fall back to mock mode)
-    if not os.environ.get("DEEPSEEK_API_KEY"):
-        logger.warning(
-            "DEEPSEEK_API_KEY not set. LLM agents will operate in mock/fallback mode."
-        )
-
     settings = get_settings()
+    config = load_config(settings.project_root / "config")
     target_db_path = Path(db_path) if db_path else settings.data_dir / "radar.duckdb"
-    official_source_cfg = load_config(settings.project_root / "config").sources.get(
-        "official_insolvency_berlin"
-    )
+    official_source_cfg = config.sources.get("official_insolvency_berlin")
     effective_source_mode = source_mode or (
         official_source_cfg.mode if official_source_cfg else "normal"
     )
 
-    # 1. Initialize Database (skip if dry_run, though we might still want schema)
-    if not dry_run:
-        db = Database(target_db_path)
-        db.run_migrations()
-        checkpoint_db_path = settings.data_dir / "checkpoints.sqlite"
-    else:
+    if dry_run:
         db = Database(":memory:")
-        db.run_migrations()
         checkpoint_db_path = ":memory:"
-
-    # 2. Initialize Checkpoint Manager with appropriate path (prevents dry-run leakage)
+    else:
+        db = Database(target_db_path)
+        checkpoint_db_path = settings.data_dir / "checkpoints.sqlite"
+    db.run_migrations()
     checkpoint_mgr = CheckpointManager(checkpoint_db_path)
 
-    # 3. Acquire source data before graph execution.
-    if dry_run:
-        source_run_id, raw_records = _load_dry_run_records(settings)
-    elif effective_source_mode == "fixture":
-        fixture_path = (
-            Path(official_source_cfg.path)
-            if official_source_cfg and official_source_cfg.path
-            else settings.project_root
-            / "tests"
-            / "fixtures"
-            / "official_portal"
-            / "sample_response.html"
-        )
-        fetch_result = OfficialPortalAdapter(db).fetch_fixture_date_range(
-            fixture_path=str(fixture_path),
-            start_date=start_date,
-            end_date=end_date,
-            dry_run=False,
-        )
-        if fetch_result["status"] != "completed":
-            return {
-                "status": "failed",
-                "error": "Official portal fixture acquisition failed",
-                "errors": fetch_result.get("errors", []),
-            }
-        source_run_id = fetch_result["source_run_id"]
-        raw_records = fetch_result.get("records", [])
-    else:
-        fetch_result = asyncio_run(
-            OfficialPortalAdapter(db).fetch_date_range(
+    try:
+        if dry_run:
+            source_run_id, raw_records = _load_fixture_records(settings)
+        elif effective_source_mode == "fixture":
+            fixture_path = (
+                Path(official_source_cfg.path)
+                if official_source_cfg and official_source_cfg.path
+                else settings.project_root
+                / "tests"
+                / "fixtures"
+                / "official_portal"
+                / "sample_response.html"
+            )
+            fetch_result = OfficialPortalAdapter(db).fetch_fixture_date_range(
+                fixture_path=str(fixture_path),
                 start_date=start_date,
                 end_date=end_date,
                 dry_run=False,
             )
-        )
-        if fetch_result["status"] != "completed":
-            return {
-                "status": "failed",
-                "error": "Official portal acquisition failed",
-                "errors": fetch_result.get("errors", []),
-            }
-        source_run_id = fetch_result["source_run_id"]
-        raw_records = fetch_result.get("records", [])
+            if fetch_result["status"] != "completed":
+                return {
+                    "status": "failed",
+                    "error": "Official portal fixture acquisition failed",
+                    "errors": fetch_result.get("errors", []),
+                }
+            source_run_id = fetch_result["source_run_id"]
+            raw_records = fetch_result.get("records", [])
+        else:
+            fetch_result = asyncio_run(
+                OfficialPortalAdapter(db).fetch_date_range(
+                    start_date=start_date,
+                    end_date=end_date,
+                    dry_run=False,
+                )
+            )
+            if fetch_result["status"] != "completed":
+                return {
+                    "status": "failed",
+                    "error": "Official portal acquisition failed",
+                    "errors": fetch_result.get("errors", []),
+                }
+            source_run_id = fetch_result["source_run_id"]
+            raw_records = fetch_result.get("records", [])
 
-    if not dry_run:
-        AuditRepository(db).log_event(
-            actor="system:phase2_pipeline",
-            action="phase2_acquisition_completed"
-            if raw_records is not None
-            else "phase2_acquisition_attempted",
-            entity_type="source_run",
-            entity_id=source_run_id,
-            request_data={
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "source_mode": effective_source_mode,
-            },
-            result_data={
-                "raw_records": len(raw_records),
-            },
-        )
-
-    # 4. Build and Compile Workflow
-    workflow = build_phase2_workflow().compile(
-        checkpointer=checkpoint_mgr.saver_instance
-    )
-
-    # 5. Define Initial State (transient execution data + metadata)
-    initial_state = {
-        "source_run_id": source_run_id,
-        "raw_records": raw_records,
-        "candidates": [],
-        "extraction_results": {},
-        "enrichment_results": {},
-        "scores": {},
-        "risk_reviews": {},
-        "retry_counts": {},
-        "current_step": "ingest",
-        "errors": [],
-        "warnings": [],
-    }
-
-    # 6. Execute Workflow
-    config = {"configurable": {"thread_id": thread_id}}
-
-    try:
-        # Note: In a full implementation, the 'ingest' node would be passed
-        # the start_date/end_date via config or state. For now, we pass it in config.
-        config["configurable"]["start_date"] = start_date
-        config["configurable"]["end_date"] = end_date
-        config["configurable"]["dry_run"] = dry_run
-
-        final_state = workflow.invoke(initial_state, config)
-        issue_id = None
         if not dry_run:
-            issue_id = _persist_phase2_results(
-                db, final_state, final_state.get("export_path")
+            AuditRepository(db).log_event(
+                actor="system:pipeline",
+                action="pipeline_acquisition_completed"
+                if raw_records is not None
+                else "pipeline_acquisition_attempted",
+                entity_type="source_run",
+                entity_id=source_run_id,
+                request_data={
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "source_mode": effective_source_mode,
+                },
+                result_data={"raw_records": len(raw_records)},
             )
 
-        logger.info("Phase 2 pipeline completed successfully")
+        workflow = build_pipeline_workflow(
+            extractor=extractor,
+            risk_reviewer=risk_reviewer,
+            enricher=enricher,
+        ).compile(checkpointer=checkpoint_mgr.saver_instance)
+
+        initial_state = {
+            "source_run_id": source_run_id,
+            "raw_records": raw_records,
+            "candidates": [],
+            "extraction_results": {},
+            "enrichment_results": {},
+            "scores": {},
+            "risk_reviews": {},
+            "retry_counts": {},
+            "current_step": "ingest",
+            "errors": [],
+            "warnings": [],
+        }
+        invocation_config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "dry_run": dry_run,
+            }
+        }
+        final_state = workflow.invoke(initial_state, invocation_config)
+        issue_id = None
+        if not dry_run:
+            issue_id = _persist_results(db, final_state, final_state.get("export_path"))
+
+        logger.info("Pipeline completed successfully")
         return {
             "status": "success",
             "current_step": final_state.get("current_step"),
@@ -356,40 +395,42 @@ def run_phase2_pipeline(
             "warnings": final_state.get("warnings", []),
             "errors": final_state.get("errors", []),
         }
-
-    except Exception as e:
-        logger.error("Phase 2 pipeline failed", exc_info=True)
-        return {
-            "status": "failed",
-            "error": str(e),
-        }
+    except Exception as exc:
+        logger.error("Pipeline failed", exc_info=True)
+        return {"status": "failed", "error": str(exc)}
     finally:
-        # Cleanup checkpoint connection if needed, or keep alive for app lifecycle
-        pass
+        checkpoint_mgr.close()
+        db.close()
 
 
-def run_phase2_check() -> dict:
-    """Run a full local Phase 2 verification pass against fixture-backed acquisition."""
+def run_pipeline_check() -> dict[str, Any]:
+    """Run a full local verification pass against fixture-backed acquisition and deterministic stubs."""
     start_date = date(2026, 6, 10)
     end_date = date(2026, 6, 16)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
-        db_path = tmp_path / "phase2_check.duckdb"
-        first = run_phase2_pipeline(
+        db_path = tmp_path / "pipeline_check.duckdb"
+        first = run_pipeline(
             start_date=start_date,
             end_date=end_date,
             dry_run=False,
-            thread_id="phase2_check_first",
+            thread_id="pipeline_check_first",
             db_path=db_path,
             source_mode="fixture",
+            extractor=_stub_extractor,
+            risk_reviewer=_stub_risk_reviewer,
+            enricher=_stub_enricher,
         )
-        second = run_phase2_pipeline(
+        second = run_pipeline(
             start_date=start_date,
             end_date=end_date,
             dry_run=False,
-            thread_id="phase2_check_second",
+            thread_id="pipeline_check_second",
             db_path=db_path,
             source_mode="fixture",
+            extractor=_stub_extractor,
+            risk_reviewer=_stub_risk_reviewer,
+            enricher=_stub_enricher,
         )
         db = Database(db_path)
         try:

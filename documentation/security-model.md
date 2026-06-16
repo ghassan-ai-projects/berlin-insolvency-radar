@@ -27,15 +27,13 @@ layer.
 | Checkpoint tampering | SQLite 0o600 permissions; WAL mode |
 | Information disclosure in errors | Generic MCP error messages; details logged server-side |
 | Legacy DB path traversal | `Path.resolve()` bounds check (planned) |
-| Rate limiting / DoS | Singleton execution lock for Phase 2 workflow (planned) |
+| Rate limiting / DoS | Singleton execution lock for workflow execution (planned) |
 
 ## Key Management
 
 - `DEEPSEEK_API_KEY` is read from environment only
 - `.env` is in `.gitignore` — never committed
 - `.env.example` documents the format without actual keys
-- `BI_RADAR_USE_MOCK_AGENTS=true` enables local development without API keys
-
 ## Data Storage
 
 - All application data stored in DuckDB (`data/radar.duckdb`)
@@ -53,4 +51,4 @@ When deploying beyond local use:
 4. Run as a dedicated non-root user
 5. Set up log rotation and monitoring
 6. Configure firewall rules to allow only trusted IPs
-7. Review the rate limiting and singleton lock for the Phase 2 workflow
+7. Review the rate limiting and singleton lock for workflow execution

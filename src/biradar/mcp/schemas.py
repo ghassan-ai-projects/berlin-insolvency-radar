@@ -21,7 +21,7 @@ __all__ = [
     "ListCandidatesInput",
     "ListSourceRunsInput",
     "ReviewCandidateInput",
-    "RunPhase2WorkflowInput",
+    "RunWorkflowInput",
 ]
 
 
@@ -99,13 +99,13 @@ class ListSourceRunsInput(BaseModel):
     limit: int = Field(default=20, ge=1, le=200)
 
 
-class RunPhase2WorkflowInput(BaseModel):
+class RunWorkflowInput(BaseModel):
     start_date: date = Field(description="Start date for scraping (YYYY-MM-DD)")
     end_date: date = Field(description="End date for scraping (YYYY-MM-DD)")
     dry_run: bool = False
 
     @model_validator(mode="after")
-    def validate_date_order(self) -> "RunPhase2WorkflowInput":
+    def validate_date_order(self) -> "RunWorkflowInput":
         if self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
         return self

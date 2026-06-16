@@ -8,7 +8,7 @@ deterministic correctness, and MCP-first operation.
 ```
 Layer 5 (Entry):     cli/main  ,  mcp/server
                          |            |
-Layer 4 (Orch):     phase2_pipeline  ,  container (DI)
+Layer 4 (Orch):     pipeline  ,  container (DI)
                          |       /     |    \
 Layer 3 (Logic):     graph/  services/{health,candidates,issues,reviews,import_legacy}
                      /    |      \
@@ -28,7 +28,7 @@ All dependencies flow top-down. No circular imports.
 - `storage/repository.py` — 8 repository classes centralizing all SQL. No raw SQL outside this file.
 
 ### Layer 2: Adapters
-- `agents/` — LLM wrappers (DeepSeek). Extraction and risk review agents with JSON mode, structured fallback, and mock support.
+- `agents/` — LLM wrappers (DeepSeek). Extraction and risk review agents with JSON mode and fail-closed behavior.
 - `domain/` — Pure functions with zero I/O: compliance filtering, hash-based deduplication, weighted scoring, status state machine, date validation.
 - `output/` — Markdown and JSON export generators.
 - `sources/` — External data adapters. `OfficialPortalAdapter` manages JSF sessions, ViewState extraction, CSRF replay, and HTML parsing.
@@ -39,7 +39,7 @@ All dependencies flow top-down. No circular imports.
 - `AppContainer` in `services/container.py` is the composition root, wiring database, config, and repositories into all services.
 
 ### Layer 4: Workflow
-- `graph/` — LangGraph state machines. `phase2_workflow.py` defines the 8-node agentic pipeline.
+- `graph/` — LangGraph state machines. `pipeline_workflow.py` defines the 8-node agentic pipeline.
 - `graph/state.py` — TypedDict-based workflow state with Literal-typed step tracking.
 - `graph/checkpoints.py` — SQLite-backed checkpoint saver with WAL mode and 0o600 permissions.
 
@@ -86,7 +86,7 @@ src/biradar/
   storage/         DuckDB connection and repository layer
   utils/           Shared utilities (prompt loading, JSON parsing)
 tests/
-  unit/            Fast tests, mock LLM agents
+  unit/            Fast tests with explicit stubs where needed
   acceptance/      Phase gating tests, real DuckDB
   e2e/             Full pipeline tests, @pytest.mark.live for live portal
   fixtures/        Test data and fixture builders

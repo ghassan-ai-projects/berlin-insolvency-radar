@@ -7,7 +7,7 @@ from pathlib import Path
 
 from biradar.config.settings import load_config
 from biradar.mcp.server import create_mcp_server, list_radar_tools
-from biradar.services.phase2_pipeline import run_phase2_check, run_phase2_pipeline
+from biradar.services.pipeline import run_pipeline, run_pipeline_check
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
@@ -35,37 +35,37 @@ def build_parser() -> argparse.ArgumentParser:
         "mcp-info", help="Validate MCP server construction and list tools."
     )
     subparsers.add_parser("serve-mcp", help="Run the MCP server over stdio.")
+    subparsers.add_parser("serve", help="Alias for serve-mcp.")
 
-    # Phase 2 CLI command
-    phase2_parser = subparsers.add_parser(
-        "phase2-run", help="Execute the Phase 2 agentic pipeline."
+    pipeline_parser = subparsers.add_parser(
+        "pipeline-run", help="Execute the production workflow pipeline."
     )
-    phase2_parser.add_argument(
+    pipeline_parser.add_argument(
         "--start-date",
         type=str,
         required=True,
         help="Start date for scraping (YYYY-MM-DD)",
     )
-    phase2_parser.add_argument(
+    pipeline_parser.add_argument(
         "--end-date",
         type=str,
         required=True,
         help="End date for scraping (YYYY-MM-DD)",
     )
-    phase2_parser.add_argument(
+    pipeline_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="If set, do not persist records to the database.",
     )
-    phase2_parser.add_argument(
+    pipeline_parser.add_argument(
         "--thread-id",
         type=str,
-        default="phase2_default",
+        default="pipeline_default",
         help="LangGraph thread ID for checkpointing and resume.",
     )
     subparsers.add_parser(
-        "phase2-check",
-        help="Run fixture-backed Phase 2 verification against a temporary DuckDB.",
+        "pipeline-check",
+        help="Run fixture-backed validation with deterministic stubs against a temporary DuckDB.",
     )
 
     return parser
@@ -91,20 +91,20 @@ def main() -> None:
                 print(f"- {tool.name}")
             return
 
-        if command == "serve-mcp":
+        if command in {"serve-mcp", "serve"}:
             asyncio.run(run_mcp_server(args.config_dir, args.db_path))
             return
 
-        if command == "phase2-run":
+        if command == "pipeline-run":
             from datetime import date
 
             start_date = date.fromisoformat(args.start_date)
             end_date = date.fromisoformat(args.end_date)
 
             print(
-                f"Starting Phase 2 pipeline: {start_date} to {end_date} (dry_run={args.dry_run})"
+                f"Starting pipeline: {start_date} to {end_date} (dry_run={args.dry_run})"
             )
-            result = run_phase2_pipeline(
+            result = run_pipeline(
                 start_date=start_date,
                 end_date=end_date,
                 dry_run=args.dry_run,
@@ -112,22 +112,22 @@ def main() -> None:
             )
 
             if result["status"] == "success":
-                print("✅ Phase 2 pipeline completed successfully.")
+                print("Pipeline completed successfully.")
                 if result.get("export_path"):
-                    print(f"📦 Export path: {result['export_path']}")
+                    print(f"Export path: {result['export_path']}")
                 if result.get("warnings"):
-                    print(f"⚠️ Warnings: {result['warnings']}")
+                    print(f"Warnings: {result['warnings']}")
             else:
-                print(f"❌ Phase 2 pipeline failed: {result.get('error')}")
+                print(f"Pipeline failed: {result.get('error')}")
                 sys.exit(1)
             return
 
-        if command == "phase2-check":
-            result = run_phase2_check()
+        if command == "pipeline-check":
+            result = run_pipeline_check()
             if result["status"] != "success":
-                print(f"❌ Phase 2 check failed: {result}")
+                print(f"Pipeline check failed: {result}")
                 sys.exit(1)
-            print("Phase 2 check passed.")
+            print("Pipeline check passed.")
             print(result)
             return
 

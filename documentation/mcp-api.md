@@ -167,8 +167,8 @@ Inspect source-run history for official acquisition runs.
 
 ---
 
-### `radar_run_phase2_workflow`
-Trigger the fully agentic Phase 2 pipeline from ingestion to local export.
+### `radar_run_workflow`
+Trigger the production workflow pipeline from ingestion to local export.
 
 **Input:**
 - `start_date` (string, required) — YYYY-MM-DD
@@ -196,5 +196,5 @@ Trigger the fully agentic Phase 2 pipeline from ingestion to local export.
 | `INVALID_STATUS` | Operation invalid for current status | No |
 | `UNSUPPORTED_FORMAT` | Export format not supported | No |
 | `NO_VALID_CANDIDATES` | No publish-ready candidates for draft | No |
-| `PHASE2_WORKFLOW_FAILED` | Pipeline execution failed | Yes |
+| `WORKFLOW_FAILED` | Pipeline execution failed | Yes |
 | `INTERNAL_ERROR` | Unhandled internal error | Yes |

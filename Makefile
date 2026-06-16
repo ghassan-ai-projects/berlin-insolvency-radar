@@ -1,32 +1,36 @@
-.PHONY: check phase0-check phase1-check format lint typecheck test test-integration test-acceptance test-e2e pre-commit clean
+.PHONY: check verify format format-check lint typecheck test test-integration test-acceptance test-e2e pre-commit clean
 
-check: phase0-check
-phase0-check: format lint typecheck test test-acceptance
-phase1-check: format lint typecheck test test-acceptance test-e2e
+UV_RUN=UV_CACHE_DIR=.uv-cache uv run
+
+check: verify
+verify: format-check lint typecheck test test-acceptance test-e2e
 
 pre-commit:
-	pre-commit run --all-files
+	$(UV_RUN) pre-commit run --all-files
 
 format:
-	ruff format src/biradar tests
+	$(UV_RUN) ruff format src/biradar tests
+
+format-check:
+	$(UV_RUN) ruff format --check src/biradar tests
 
 lint:
-	ruff check src/biradar tests
+	$(UV_RUN) ruff check src/biradar tests
 
 typecheck:
-	pyright src/biradar
+	$(UV_RUN) pyright src/biradar
 
 test:
-	pytest tests/unit --cov=src/biradar --cov-report=term-missing --timeout=30
+	$(UV_RUN) pytest tests/unit --cov=src/biradar --cov-report=term-missing --timeout=30
 
 test-integration:
-	pytest tests/integration --cov=src/biradar --cov-report=term-missing --timeout=30
+	$(UV_RUN) pytest tests/integration --cov=src/biradar --cov-report=term-missing --timeout=30
 
 test-acceptance:
-	pytest tests/acceptance --cov=src/biradar --cov-report=term-missing --timeout=30
+	$(UV_RUN) pytest tests/acceptance --cov=src/biradar --cov-report=term-missing --timeout=30
 
 test-e2e:
-	pytest tests/e2e --cov=src/biradar --cov-report=term-missing --timeout=60
+	$(UV_RUN) pytest tests/e2e -m "not live" --cov=src/biradar --cov-report=term-missing --timeout=60
 
 clean:
 	rm -rf .pytest_cache

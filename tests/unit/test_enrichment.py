@@ -1,69 +1,33 @@
 """Unit tests for multi-source enrichment with mocked HTTP."""
 
-import os
-from unittest.mock import MagicMock, patch
-
-import pytest
+import socket
+from unittest.mock import patch
 
 from biradar.sources.enrichment import (
     EnrichmentResult,
     _aggregate_result,
     _build_company_slug,
     _dns_resolves,
-    _is_enrich_real,
+    _get_enrichment_config,
     enrich_candidate,
-    lookup_github,
-    lookup_handelsregister,
-    lookup_website,
 )
 
 
-# ---------------------------------------------------------------------------
-# Gate tests
-# ---------------------------------------------------------------------------
+class TestEnrichmentConfig:
+    def test_config_object_available(self):
+        assert hasattr(_get_enrichment_config(), "enabled")
 
 
-class TestEnrichRealGate:
-    def test_not_set_defaults_false(self, monkeypatch):
-        monkeypatch.delenv("BI_RADAR_ENRICH_REAL", raising=False)
-        assert _is_enrich_real() is False
-
-    def test_zero_is_false(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "0")
-        assert _is_enrich_real() is False
-
-    def test_false_string_is_false(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "false")
-        assert _is_enrich_real() is False
-
-    def test_one_is_true(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "1")
-        assert _is_enrich_real() is True
-
-    def test_true_string_is_true(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "true")
-        assert _is_enrich_real() is True
-
-
-# ---------------------------------------------------------------------------
-# enrich_candidate — mock mode
-# ---------------------------------------------------------------------------
-
-
-class TestEnrichCandidateMockMode:
-    def test_returns_mock_when_disabled(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "0")
+class TestEnrichCandidateModes:
+    def test_returns_disabled_result_when_config_disabled(self, monkeypatch):
+        _get_enrichment_config.cache_clear()
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_enrichment_config",
+            lambda: type("Cfg", (), {"enabled": False, "delay_between_sources": 0.0})(),
+        )
         result = enrich_candidate("Test GmbH")
-        assert result.enriched is True
-        assert result.sector == "Unknown"
-        assert len(result.sources) == 1
-        assert result.sources[0]["value"] == "Unknown"
-
-    def test_returns_mock_when_not_set(self, monkeypatch):
-        monkeypatch.delenv("BI_RADAR_ENRICH_REAL", raising=False)
-        result = enrich_candidate("Test GmbH")
-        assert result.enriched is True
-        assert result.sector == "Unknown"
+        assert result.enriched is False
+        assert "disabled" in result.errors[0].lower()
 
     def test_empty_company_name(self):
         result = enrich_candidate("")
@@ -71,14 +35,12 @@ class TestEnrichCandidateMockMode:
         assert "Missing company_name" in result.errors
 
 
-# ---------------------------------------------------------------------------
-# enrich_candidate — real mode (mocked HTTP)
-# ---------------------------------------------------------------------------
-
-
-class TestEnrichCandidateRealMode:
+class TestEnrichCandidateLiveMode:
     def test_all_sources_succeed(self, monkeypatch):
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "1")
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_enrichment_config",
+            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+        )
 
         with (
             patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
@@ -103,7 +65,7 @@ class TestEnrichCandidateRealMode:
             }
             mock_web.return_value = {
                 "url": "https://test-gmbh.de",
-                "title": "Test GmbH — Home",
+                "title": "Test GmbH - Home",
                 "description": "Innovative testing solutions",
                 "tech_signals": ["React", "Node.js"],
                 "status_code": 200,
@@ -119,22 +81,24 @@ class TestEnrichCandidateRealMode:
 
             result = enrich_candidate("Test GmbH")
 
-            assert result.enriched is True
-            assert len(result.sources) == 4
-            assert result.sector == "Legal form: GmbH"
-            assert result.legal_form == "GmbH"
-            assert result.registry_court == "Amtsgericht Berlin"
-            assert result.registry_number == "HRB 12345"
-            assert result.company_status == "active"
-            assert result.tech_stack == "React, Node.js"
-            assert result.website_url == "https://test-gmbh.de"
-            assert result.github_org == "test-gmbh"
-            assert "Revenue: 1.2 Mio. EUR" in (result.funding_info or "")
-            assert len(result.errors) == 0
+        assert result.enriched is True
+        assert len(result.sources) == 4
+        assert result.sector == "Legal form: GmbH"
+        assert result.legal_form == "GmbH"
+        assert result.registry_court == "Amtsgericht Berlin"
+        assert result.registry_number == "HRB 12345"
+        assert result.company_status == "active"
+        assert result.tech_stack == "React, Node.js"
+        assert result.website_url == "https://test-gmbh.de"
+        assert result.github_org == "test-gmbh"
+        assert "Revenue: 1.2 Mio. EUR" in (result.funding_info or "")
+        assert len(result.errors) == 0
 
     def test_source_failure_isolation(self, monkeypatch):
-        """One source failing should not abort the others."""
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "1")
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_enrichment_config",
+            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+        )
 
         with (
             patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
@@ -142,7 +106,6 @@ class TestEnrichCandidateRealMode:
             patch("biradar.sources.enrichment.lookup_website") as mock_web,
             patch("biradar.sources.enrichment.lookup_handelsregister") as mock_hr,
         ):
-            # Bundesanzeiger fails, Github returns None, website succeeds, HR succeeds
             mock_b.side_effect = RuntimeError("Connection error")
             mock_gh.return_value = None
             mock_web.return_value = {
@@ -155,7 +118,7 @@ class TestEnrichCandidateRealMode:
             }
             mock_hr.return_value = {
                 "legal_form": "AG",
-                "registry_court": "Amtsgericht München",
+                "registry_court": "Amtsgericht Muenchen",
                 "registry_number": "HRB 99999",
                 "status": "active",
                 "source": "handelsregister",
@@ -163,36 +126,32 @@ class TestEnrichCandidateRealMode:
 
             result = enrich_candidate("Example AG")
 
-            assert result.enriched is True
-            assert len(result.sources) == 2  # only website + handelsregister
-            assert result.legal_form == "AG"
-            assert len(result.errors) == 2  # bundesanzeiger + github
+        assert result.enriched is True
+        assert len(result.sources) == 2
+        assert result.legal_form == "AG"
+        assert len(result.errors) == 2
 
     def test_no_sources_return_data(self, monkeypatch):
-        """All sources returning None should still produce an enriched result."""
-        monkeypatch.setenv("BI_RADAR_ENRICH_REAL", "1")
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_enrichment_config",
+            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+        )
 
         with (
-            patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
-            patch("biradar.sources.enrichment.lookup_github") as mock_gh,
-            patch("biradar.sources.enrichment.lookup_website") as mock_web,
-            patch("biradar.sources.enrichment.lookup_handelsregister") as mock_hr,
+            patch(
+                "biradar.sources.enrichment.lookup_bundesanzeiger", return_value=None
+            ),
+            patch("biradar.sources.enrichment.lookup_github", return_value=None),
+            patch("biradar.sources.enrichment.lookup_website", return_value=None),
+            patch(
+                "biradar.sources.enrichment.lookup_handelsregister", return_value=None
+            ),
         ):
-            mock_b.return_value = None
-            mock_gh.return_value = None
-            mock_web.return_value = None
-            mock_hr.return_value = None
-
             result = enrich_candidate("Unknown GmbH")
 
-            assert result.enriched is True
-            assert len(result.sources) == 0
-            assert len(result.errors) == 4
-
-
-# ---------------------------------------------------------------------------
-# _aggregate_result
-# ---------------------------------------------------------------------------
+        assert result.enriched is False
+        assert len(result.sources) == 0
+        assert len(result.errors) == 4
 
 
 class TestAggregateResult:
@@ -238,11 +197,6 @@ class TestAggregateResult:
         assert result["tech_stack"] is None
 
 
-# ---------------------------------------------------------------------------
-# _build_company_slug
-# ---------------------------------------------------------------------------
-
-
 class TestBuildCompanySlug:
     def test_strips_gmbh(self):
         assert _build_company_slug("Test GmbH") == "test"
@@ -260,31 +214,28 @@ class TestBuildCompanySlug:
         assert _build_company_slug("Müller & Söhne GmbH") == "mller-shne"
 
     def test_no_legal_form(self):
-        slug = _build_company_slug("SimpleName")
-        assert slug == "simplename"
-
-
-# ---------------------------------------------------------------------------
-# _dns_resolves
-# ---------------------------------------------------------------------------
+        assert _build_company_slug("Plain Name") == "plain-name"
 
 
 class TestDnsResolves:
-    def test_valid_domain(self):
-        assert _dns_resolves("google.com") is True
+    def test_valid_domain(self, monkeypatch):
+        def succeeds(*_args, **_kwargs):
+            return [("ok",)]
 
-    def test_invalid_domain(self):
-        assert _dns_resolves("this-does-not-exist-xyzzy.invalid") is False
+        monkeypatch.setattr("biradar.sources.enrichment.socket.getaddrinfo", succeeds)
+        assert _dns_resolves("example.com") is True
 
+    def test_invalid_domain(self, monkeypatch):
+        def fail(*_args, **_kwargs):
+            raise socket.gaierror("dns failed")
 
-# ---------------------------------------------------------------------------
-# EnrichmentResult pydantic model
-# ---------------------------------------------------------------------------
+        monkeypatch.setattr("biradar.sources.enrichment.socket.getaddrinfo", fail)
+        assert _dns_resolves("does-not-exist.invalid") is False
 
 
 class TestEnrichmentResult:
     def test_defaults(self):
-        result = EnrichmentResult(company_name="Test")
+        result = EnrichmentResult(company_name="Test GmbH")
         assert result.enriched is False
         assert result.sources == []
         assert result.errors == []
@@ -292,19 +243,12 @@ class TestEnrichmentResult:
     def test_full_result(self):
         result = EnrichmentResult(
             company_name="Test GmbH",
-            sources=[{"source": "handelsregister", "legal_form": "GmbH"}],
-            errors=["bundesanzeiger: no data returned"],
+            sources=[{"source": "website"}],
+            errors=["minor issue"],
             enriched=True,
-            sector="Legal form: GmbH",
-            legal_form="GmbH",
-            tech_stack="React, Python",
-            website_url="https://test.de",
-            github_org="test-gmbh",
-            funding_info="Revenue: 1.2 Mio. EUR",
-            registry_court="Amtsgericht Berlin",
-            registry_number="HRB 12345",
-            company_status="active",
+            sector="Tech",
+            website_url="https://example.com",
         )
         assert result.enriched is True
-        assert result.legal_form == "GmbH"
-        assert len(result.errors) == 1
+        assert result.sector == "Tech"
+        assert result.website_url == "https://example.com"

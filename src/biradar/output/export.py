@@ -1,6 +1,7 @@
 """Export generators for local artifact packages."""
 
 import json
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,13 @@ from typing import Any
 from biradar.observability.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _build_export_path(export_dir: Path, prefix: str, suffix: str) -> Path:
+    """Build a collision-resistant export path."""
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
+    token = uuid.uuid4().hex[:8]
+    return export_dir / f"{prefix}_{timestamp}_{token}.{suffix}"
 
 
 def generate_markdown_draft(issue_data: dict[str, Any], export_dir: Path) -> str:
@@ -97,9 +105,7 @@ def generate_markdown_draft(issue_data: dict[str, Any], export_dir: Path) -> str
     export_dir.mkdir(parents=True, exist_ok=True)
 
     # Write to file
-    now_fmt = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    filename = f"issue_draft_{now_fmt}.md"
-    export_path = export_dir / filename
+    export_path = _build_export_path(export_dir, "issue_draft", "md")
 
     export_path.write_text(markdown_content, encoding="utf-8")
     logger.info("Markdown draft exported", extra={"path": str(export_path)})
@@ -130,9 +136,7 @@ def generate_json_package(issue_data: dict[str, Any], export_dir: Path) -> str:
         "candidates": clean_candidates,
     }
 
-    now_fmt = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    filename = f"issue_data_{now_fmt}.json"
-    export_path = export_dir / filename
+    export_path = _build_export_path(export_dir, "issue_data", "json")
 
     with open(export_path, "w", encoding="utf-8") as f:
         json.dump(package, f, indent=2)

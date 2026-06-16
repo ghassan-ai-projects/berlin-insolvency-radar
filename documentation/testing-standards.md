@@ -4,9 +4,9 @@
 
 | Tier | Location | Characteristics | Speed |
 |------|----------|-----------------|-------|
-| Unit | `tests/unit/` | No I/O, mock LLM agents, fast | <2s |
+| Unit | `tests/unit/` | No I/O, explicit stubs where needed, fast | <2s |
 | Acceptance | `tests/acceptance/` | Real DuckDB, fixture data, phase gates | <5s |
-| E2E (local) | `tests/e2e/` | Full pipeline, fixture/mock mode | <5s |
+| E2E (local) | `tests/e2e/` | Full pipeline, fixture/stub mode | <5s |
 | E2E (live) | `tests/e2e/` | Live portal + DeepSeek, `@pytest.mark.live` | ~30s |
 
 ## Conventions
@@ -14,7 +14,6 @@
 - Test files: `test_<module>.py`
 - Test functions: `test_<unit>_<scenario>` (descriptive, snake_case)
 - Use `pytest` fixtures for setup; `conftest.py` for shared fixtures
-- `conftest.py` defaults `BI_RADAR_USE_MOCK_AGENTS=1` for safety
 - Live E2E tests are gated by `@pytest.mark.live` and load `DEEPSEEK_API_KEY` from `.env`
 
 ## Coverage Targets
@@ -35,24 +34,17 @@
 make test              # Unit tests
 make test-acceptance   # Acceptance tests
 make test-e2e          # E2E (excludes live)
-make check             # Format + lint + typecheck + unit + acceptance
+make check             # Format + lint + typecheck + unit + acceptance + non-live E2E
 
 # Live E2E (requires DEEPSEEK_API_KEY)
 uv run pytest tests/e2e -m "live" -v
 ```
 
-## Mock Agent Behavior
+## Test Stub Behavior
 
-When `BI_RADAR_USE_MOCK_AGENTS=true` or `DEEPSEEK_API_KEY` is unset:
-
-- `extract_filing_facts()` returns a deterministic mock `ExtractionResult`
-- `review_candidate_risk()` returns `passed_review=True, confidence=0.5`
-- All tests in `tests/unit/` and `tests/acceptance/` run in mock mode by default
-
-**Enrichment** has its own gate: when `BI_RADAR_ENRICH_REAL` is unset or `"0"`,
-`enrich_candidate()` returns mock data (`sector: "Unknown"`). Set `BI_RADAR_ENRICH_REAL=1`
-to contact the 4 live sources (Bundesanzeiger, GitHub, company website, Handelsregister).
-All enrichment unit tests mock HTTP; no network is required in CI.
+- Production code no longer substitutes fake LLM outputs when `DEEPSEEK_API_KEY` is missing.
+- Tests that need deterministic agent behavior inject explicit stub extractor/reviewer/enricher functions.
+- Enrichment can be disabled in `config/sources.yaml`, in which case the system skips it without inventing data.
 
 ## Phase Acceptance Gates
 

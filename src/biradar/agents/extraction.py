@@ -30,36 +30,15 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
     """
     Extract structured filing facts from raw insolvency notice text.
 
-    Falls back to a mock result if DEEPSEEK_API_KEY is not set, allowing
-    local development and testing without network calls.
+    Requires a live DeepSeek configuration. Callers that need deterministic local
+    verification should inject a stub extractor instead of relying on runtime mocks.
     """
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
 
-    if not api_key or use_mock:
-        logger.warning(
-            "DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Returning mock extraction result."
-        )
-        return ExtractionResult(
-            company_name="Mock GmbH",
-            legal_form="GmbH",
-            court="Amtsgericht Charlottenburg",
-            case_number="36e IN 123/26",
-            filing_date="2026-06-15",
-            proceeding_stage="Eröffnungsbeschluss",
-            is_consumer_likely=False,
-            field_confidence_scores={"company_name": 0.9, "case_number": 0.9},
-            evidence_snippets={
-                "company_name": "Mock GmbH",
-                "case_number": "36e IN 123/26",
-            },
-        )
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is required for filing extraction")
 
     try:
         llm = ChatOpenAI(

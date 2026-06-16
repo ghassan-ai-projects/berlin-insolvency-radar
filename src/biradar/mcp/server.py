@@ -20,10 +20,10 @@ from biradar.mcp.schemas import (
     ListCandidatesInput,
     ListSourceRunsInput,
     ReviewCandidateInput,
-    RunPhase2WorkflowInput,
+    RunWorkflowInput,
 )
 from biradar.services.container import AppContainer
-from biradar.services.phase2_pipeline import run_phase2_pipeline
+from biradar.services.pipeline import run_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +212,8 @@ def list_radar_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="radar_run_phase2_workflow",
-            description="Trigger the fully agentic Phase 2 pipeline from ingestion to local export.",
+            name="radar_run_workflow",
+            description="Trigger the production workflow pipeline from ingestion to local export.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -319,9 +319,9 @@ def call_radar_tool(
             )
             return ResultEnvelope(ok=True, data=runs)
 
-        if name == "radar_run_phase2_workflow":
-            params = RunPhase2WorkflowInput(**args)
-            result = run_phase2_pipeline(
+        if name == "radar_run_workflow":
+            params = RunWorkflowInput(**args)
+            result = run_pipeline(
                 start_date=params.start_date,
                 end_date=params.end_date,
                 dry_run=params.dry_run,
@@ -334,8 +334,8 @@ def call_radar_tool(
                     if result.get("status") == "success"
                     else [
                         {
-                            "code": "PHASE2_WORKFLOW_FAILED",
-                            "message": result.get("error", "Phase 2 workflow failed."),
+                            "code": "WORKFLOW_FAILED",
+                            "message": result.get("error", "Workflow failed."),
                             "retryable": True,
                         }
                     ]

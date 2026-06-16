@@ -108,13 +108,13 @@ cli/  →  mcp/  →  services/  →  graph/  →  agents/  →  domain/
 Use the commands that actually exist in this repo:
 
 - `make format` — `ruff format src/biradar tests`
+- `make format-check` — `ruff format --check src/biradar tests`
 - `make lint` — `ruff check src/biradar tests`
 - `make typecheck` — `pyright src/biradar`
 - `make test` — unit tests with coverage
 - `make test-acceptance` — acceptance tests with coverage
 - `make test-e2e` — E2E tests (excludes `@pytest.mark.live`)
-- `make phase0-check` — `format lint typecheck test test-acceptance`
-- `make check` — alias for `phase0-check`
+- `make check` — `format-check lint typecheck test test-acceptance test-e2e`
 
 If a change is substantial, run `make check`. For targeted or docs-only work,
 run the narrowest checks that prove the change is correct and call out anything skipped.
@@ -127,7 +127,7 @@ Requirements:
 
 - Every modified production package must have tests committed in the same push.
 - Use `pytest` with descriptive function names (`test_<unit>_<scenario>`).
-- `conftest.py` defaults `BI_RADAR_USE_MOCK_AGENTS=1` for safety; live tests use `@pytest.mark.live`.
+- Use explicit stubs in tests when agent behavior must be deterministic; live tests use `@pytest.mark.live`.
 - `make test` must pass before a production-code change is considered complete.
 - Modified packages must show non-zero coverage.
 
@@ -183,7 +183,7 @@ uv run biradar serve
 Quick test (dry-run pipeline):
 
 ```bash
-uv run biradar phase2-check
+uv run biradar pipeline-check
 ```
 
 ## Commit Style

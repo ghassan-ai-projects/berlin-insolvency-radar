@@ -10,7 +10,7 @@ sources:
   official_insolvency_berlin:
     kind: official_jsf
     name: "Official Insolvency Portal Berlin"
-    enabled: false # To be enabled in Phase 2
+    enabled: true
     trust_level: "A"
     params:
       base_url: "https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf"
@@ -19,6 +19,6 @@ sources:
       backfill_days_on_first_run: 14
 
 enrichment:
-  enabled: false  # BI_RADAR_ENRICH_REAL=1 to activate
+  enabled: true
   timeout_seconds: 10
   delay_between_sources: 0.3

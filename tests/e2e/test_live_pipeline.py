@@ -1,4 +1,4 @@
-"""Live E2E tests for Phase 2 pipeline against the actual portal."""
+"""Live E2E tests for the workflow pipeline against the actual portal."""
 
 import os
 import tempfile
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from biradar.services.phase2_pipeline import run_phase2_pipeline
+from biradar.services.pipeline import run_pipeline
 
 
 def _load_env_from_file():
@@ -24,7 +24,7 @@ def _load_env_from_file():
 
 
 @pytest.mark.live
-def test_phase2_pipeline_live_portal_e2e():
+def test_pipeline_live_portal_e2e():
     """
     Test the Phase 2 pipeline end-to-end against the LIVE official portal.
 
@@ -40,9 +40,6 @@ def test_phase2_pipeline_live_portal_e2e():
     assert os.environ.get("DEEPSEEK_API_KEY"), (
         "DEEPSEEK_API_KEY must be set for live E2E tests"
     )
-    # Override conftest's mock-agent default — this live test needs the real API
-    os.environ.pop("BI_RADAR_USE_MOCK_AGENTS", None)
-
     # Use a recent, small date window (e.g., 2 days ago to today)
     # to minimize API cost and execution time while still hitting live data.
     today = date.today()
@@ -50,9 +47,9 @@ def test_phase2_pipeline_live_portal_e2e():
     end_date = today
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "live_phase2.duckdb"
+        db_path = Path(tmpdir) / "live_pipeline.duckdb"
 
-        result = run_phase2_pipeline(
+        result = run_pipeline(
             start_date=start_date,
             end_date=end_date,
             dry_run=False,  # Actually hit the portal and persist to temp DB

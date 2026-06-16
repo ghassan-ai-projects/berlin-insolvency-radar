@@ -5,6 +5,13 @@ from pathlib import Path
 
 import duckdb
 
+MIGRATION_SEQUENCE = (
+    "001_core_tables",
+    "002_audit_table",
+    "003_enrichments",
+)
+LATEST_SCHEMA_VERSION = MIGRATION_SEQUENCE[-1]
+
 
 class Database:
     """Manages the DuckDB connection and schema initialization."""
@@ -36,9 +43,9 @@ class Database:
         """)
 
         migrations = [
-            ("001_core_tables", self._create_core_tables),
-            ("002_audit_table", self._create_audit_table),
-            ("003_enrichments", self._create_enrichments_table),
+            (MIGRATION_SEQUENCE[0], self._create_core_tables),
+            (MIGRATION_SEQUENCE[1], self._create_audit_table),
+            (MIGRATION_SEQUENCE[2], self._create_enrichments_table),
         ]
 
         for name, migration_fn in migrations:

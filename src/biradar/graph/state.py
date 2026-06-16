@@ -26,7 +26,7 @@ class ReviewWorkflowState(TypedDict):
     error: NotRequired[str]
 
 
-class Phase0HealthWorkflowState(TypedDict):
+class HealthWorkflowState(TypedDict):
     actor: str
     status: str
     database_connected: NotRequired[bool]
@@ -38,8 +38,8 @@ class Phase0HealthWorkflowState(TypedDict):
     error: NotRequired[str]
 
 
-class Phase2WorkflowState(TypedDict):
-    """State for the fully agentic Phase 2 pipeline.
+class PipelineWorkflowState(TypedDict):
+    """State for the fully agentic pipeline.
 
     Per architecture rules, this state carries transient execution data
     (like candidate dicts for the duration of a single run) and workflow metadata.
@@ -60,7 +60,6 @@ class Phase2WorkflowState(TypedDict):
     current_step: Literal[
         "ingest",
         "normalize",
-        "compliance",
         "dedupe",
         "extraction",
         "enrichment",

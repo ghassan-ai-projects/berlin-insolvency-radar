@@ -5,7 +5,7 @@
 BIRADAR runs as a batch pipeline, executed on demand or on a schedule.
 
 ```
-CLI → run_phase2_pipeline() → LangGraph Workflow → DuckDB + Export
+CLI → run_pipeline() → LangGraph Workflow → DuckDB + Export
         │                           │
         ▼                           ▼
   OfficialPortal            8-node state machine:
@@ -86,7 +86,7 @@ uses checkpointing (SQLite with WAL mode) for resumability across process restar
 ## Retry & Resilience
 
 - **Scraping:** 3 retries with exponential backoff; anti-bot detection stops retries
-- **Extraction:** Falls back to JSON regex parsing if structured output fails; returns safe mock on total failure
+- **Extraction:** Falls back to JSON regex parsing if structured output fails; quarantines on total failure
 - **Scoring:** Deterministic validation rejects out-of-bounds LLM proposals
 - **Risk Review:** 2 retries max; auto-quarantine on exhaustion (fail-closed)
 - **Checkpointing:** SQLite-backed LangGraph saver with WAL mode and 0o600 permissions

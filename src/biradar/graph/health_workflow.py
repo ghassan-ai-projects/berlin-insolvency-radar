@@ -1,16 +1,16 @@
-"""Auditable Phase 0 LangGraph health workflow."""
+"""Auditable health workflow."""
 
 from typing import cast
 
 from langgraph.graph import END, StateGraph
 
-from biradar.graph.state import Phase0HealthWorkflowState
+from biradar.graph.state import HealthWorkflowState
 from biradar.services.container import AppContainer
 
 
-def phase0_health_node(
-    state: Phase0HealthWorkflowState, container: AppContainer
-) -> Phase0HealthWorkflowState:
+def health_node(
+    state: HealthWorkflowState, container: AppContainer
+) -> HealthWorkflowState:
     """Run a safe health workflow and record its audit marker."""
     try:
         health = container.health.check()
@@ -18,7 +18,7 @@ def phase0_health_node(
             message = (
                 health.errors[0]["message"]
                 if health.errors
-                else "Phase 0 health workflow failed."
+                else "Health workflow failed."
             )
             return {**state, "status": "failed", "error": message}
         health_data = health.data
@@ -34,10 +34,10 @@ def phase0_health_node(
 
         audit_id = container.audit_repo.log_event(
             actor=state.get("actor", "system"),
-            action="phase0_health_workflow_ran",
+            action="health_workflow_ran",
             entity_type="workflow",
-            entity_id="phase0_health",
-            request_data={"workflow": "phase0_health"},
+            entity_id="health_check",
+            request_data={"workflow": "health_check"},
             result_data={
                 "status": "success",
                 "schema_version": health_data["database"]["schema_version"],
@@ -60,15 +60,13 @@ def phase0_health_node(
         return {**state, "status": "failed", "error": str(e)}
 
 
-def build_phase0_health_workflow(container: AppContainer):
-    """Build the minimal Phase 0 workflow shell."""
-    workflow = StateGraph(Phase0HealthWorkflowState)
+def build_health_workflow(container: AppContainer):
+    """Build the minimal health workflow shell."""
+    workflow = StateGraph(HealthWorkflowState)
     workflow.add_node(
-        "phase0_health",
-        lambda state: phase0_health_node(
-            cast(Phase0HealthWorkflowState, state), container
-        ),
+        "health_check",
+        lambda state: health_node(cast(HealthWorkflowState, state), container),
     )
-    workflow.set_entry_point("phase0_health")
-    workflow.add_edge("phase0_health", END)
+    workflow.set_entry_point("health_check")
+    workflow.add_edge("health_check", END)
     return workflow.compile()

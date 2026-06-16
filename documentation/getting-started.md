@@ -26,32 +26,26 @@ Edit `.env` with your DeepSeek API key:
 DEEPSEEK_API_KEY=sk-your-key-here
 ```
 
-For local development without API calls, enable mock mode:
-
-```
-BI_RADAR_USE_MOCK_AGENTS=true
-```
-
 ## Verify Installation
 
 ```bash
 make check
 ```
 
-This runs format check, lint, typecheck, unit tests, and acceptance tests (54 tests total).
+This runs format check, lint, typecheck, unit tests, acceptance tests, and non-live E2E tests.
 
 ## Run The Pipeline
 
 ### Dry-run (no persistence, uses fixture data)
 
 ```bash
-uv run biradar phase2-check
+uv run biradar pipeline-check
 ```
 
 ### Full pipeline with live portal scraping
 
 ```bash
-uv run biradar run-phase2 --start-date 2026-06-10 --end-date 2026-06-16
+uv run biradar pipeline-run --start-date 2026-06-10 --end-date 2026-06-16
 ```
 
 ### MCP Server

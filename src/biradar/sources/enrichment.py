@@ -9,22 +9,24 @@ Sources (all free / public):
 Rate limiting: 0.3 s pause between source calls.
 Error handling: each source is wrapped; failures are logged, never crash.
 
-Gating: set BI_RADAR_ENRICH_REAL=1 to contact live sources.
+Gating: controlled by `config/sources.yaml` enrichment settings.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 import socket
 import ssl
 import time
+from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from pydantic import BaseModel
+
+from biradar.config.settings import get_settings, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +34,12 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-REQUEST_TIMEOUT: float = 10.0
 USER_AGENT: str = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
 MAX_RETRIES: int = 3
-DELAY_BETWEEN_SOURCES: float = 0.3
-
 WEBSITE_TLDS: list[str] = [".de", ".com", ".eu"]
 
 TECH_SIGNALS: list[tuple[str, re.Pattern]] = [
@@ -98,8 +97,9 @@ def _get_client() -> httpx.Client:
     """Return a shared httpx Client (lazy-init)."""
     global _http_client
     if _http_client is None:
+        config = _get_enrichment_config()
         _http_client = httpx.Client(
-            timeout=httpx.Timeout(REQUEST_TIMEOUT),
+            timeout=httpx.Timeout(config.timeout_seconds),
             follow_redirects=True,
             headers={"User-Agent": USER_AGENT},
         )
@@ -126,12 +126,17 @@ def _http_get(url: str) -> httpx.Response | None:
             resp.raise_for_status()
             return resp
         except httpx.TimeoutException as exc:
-            logger.debug("Timeout fetching %s (attempt %d/%d)", url, attempt, MAX_RETRIES)
+            logger.debug(
+                "Timeout fetching %s (attempt %d/%d)", url, attempt, MAX_RETRIES
+            )
             last_error = exc
         except httpx.HTTPStatusError as exc:
             logger.debug(
                 "HTTP %s fetching %s (attempt %d/%d)",
-                exc.response.status_code, url, attempt, MAX_RETRIES,
+                exc.response.status_code,
+                url,
+                attempt,
+                MAX_RETRIES,
             )
             last_error = exc
         except ssl.SSLError as exc:
@@ -139,13 +144,18 @@ def _http_get(url: str) -> httpx.Response | None:
             last_error = exc
             break
         except (httpx.ConnectError, ConnectionError, OSError) as exc:
-            logger.debug("Connection/network error fetching %s (skipping): %s", url, exc)
+            logger.debug(
+                "Connection/network error fetching %s (skipping): %s", url, exc
+            )
             last_error = exc
             break
         except httpx.RequestError as exc:
             logger.debug(
                 "Request error fetching %s (attempt %d/%d): %s",
-                url, attempt, MAX_RETRIES, exc,
+                url,
+                attempt,
+                MAX_RETRIES,
+                exc,
             )
             last_error = exc
 
@@ -188,7 +198,8 @@ def lookup_bundesanzeiger(company_name: str) -> dict[str, Any] | None:
         revenue_matches = re.findall(
             r"(?:Umsatz|Umsatzerlöse|Gesamtleistung)[^\d]*"
             r"([\d\s.,]+(?:Mio\.|Millionen|Mrd\.|Milliarden)?\s*(?:EUR|€))",
-            html, re.I,
+            html,
+            re.I,
         )
         if revenue_matches:
             revenue_estimate = revenue_matches[0].strip()
@@ -291,8 +302,15 @@ def _build_company_slug(company_name: str) -> str:
     """Build a domain slug from a company name."""
     slug = company_name.lower().strip()
     suffixes = [
-        " gmbh", " ag", " ug", " se", " gmbh & co. kg",
-        " kg", " ohg", " e.v.", " e.g.",
+        " gmbh",
+        " ag",
+        " ug",
+        " se",
+        " gmbh & co. kg",
+        " kg",
+        " ohg",
+        " e.v.",
+        " e.g.",
     ]
     for suffix in suffixes:
         slug = re.sub(rf"\s*{re.escape(suffix.strip())}\s*$", "", slug)
@@ -310,8 +328,7 @@ def lookup_website(company_name: str) -> dict[str, Any] | None:
 
     candidates = [f"https://{slug}{tld}" for tld in WEBSITE_TLDS]
     candidates = [
-        url for url in candidates
-        if _dns_resolves(urlparse(url).hostname or "")
+        url for url in candidates if _dns_resolves(urlparse(url).hostname or "")
     ]
 
     for url in candidates:
@@ -332,13 +349,15 @@ def lookup_website(company_name: str) -> dict[str, Any] | None:
             desc_match = re.search(
                 r'<meta\s+[^>]*name\s*=\s*["\']description["\'][^>]*'
                 r'content\s*=\s*["\']([^"\']+)["\']',
-                html, re.I,
+                html,
+                re.I,
             )
             if not desc_match:
                 desc_match = re.search(
                     r'<meta\s+[^>]*content\s*=\s*["\']([^"\']+)["\'][^>]*'
                     r'name\s*=\s*["\']description["\']',
-                    html, re.I,
+                    html,
+                    re.I,
                 )
             if desc_match:
                 description = desc_match.group(1).strip()
@@ -389,8 +408,14 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
         status: str | None = None
 
         for form in [
-            "GmbH & Co. KG", "GmbH", "AG", "UG", "SE",
-            "e.V.", "KG", "OHG",
+            "GmbH & Co. KG",
+            "GmbH",
+            "AG",
+            "UG",
+            "SE",
+            "e.V.",
+            "KG",
+            "OHG",
         ]:
             if re.search(rf"\b{re.escape(form)}\b", html):
                 legal_form = form
@@ -434,9 +459,10 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def _is_enrich_real() -> bool:
-    """Check if real enrichment is enabled via env flag."""
-    return os.environ.get("BI_RADAR_ENRICH_REAL", "").lower() in ("1", "true")
+@lru_cache(maxsize=1)
+def _get_enrichment_config():
+    settings = get_settings()
+    return load_config(settings.project_root / "config").enrichment
 
 
 def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -502,9 +528,6 @@ def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
 def enrich_candidate(company_name: str) -> EnrichmentResult:
     """Run enrichment from all free sources for a candidate company.
 
-    When BI_RADAR_ENRICH_REAL is unset or "0", returns mock data.
-    When set to "1" or "true", contacts the 4 live sources sequentially.
-
     Each source is isolated — a single failure does not abort the pipeline.
     """
     if not company_name:
@@ -514,25 +537,12 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
             enriched=False,
         )
 
-    if not _is_enrich_real():
-        logger.info(
-            "BI_RADAR_ENRICH_REAL not set. Returning mock enrichment for '%s'.",
-            company_name,
-        )
+    enrichment_config = _get_enrichment_config()
+    if not enrichment_config.enabled:
         return EnrichmentResult(
             company_name=company_name,
-            sector="Unknown",
-            enriched=True,
-            sources=[
-                {
-                    "field": "sector",
-                    "value": "Unknown",
-                    "classification": "inference",
-                    "source_url": None,
-                    "note": "No verified free/public enrichment source returned "
-                            "a stronger claim in local mode.",
-                }
-            ],
+            errors=["Enrichment is disabled in config/sources.yaml"],
+            enriched=False,
         )
 
     errors: list[str] = []
@@ -547,7 +557,7 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
 
     for idx, (source_name, lookup_fn) in enumerate(source_defs):
         if idx > 0:
-            time.sleep(DELAY_BETWEEN_SOURCES)
+            time.sleep(enrichment_config.delay_between_sources)
 
         try:
             logger.debug("Enriching '%s' via %s ...", company_name, source_name)
@@ -560,7 +570,9 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
             msg = f"{source_name}: unexpected error: {exc}"
             logger.warning(
                 "Enrichment error for '%s' via %s: %s",
-                company_name, source_name, exc,
+                company_name,
+                source_name,
+                exc,
             )
             errors.append(msg)
 
@@ -568,13 +580,15 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
 
     logger.info(
         "Enrichment complete for '%s': %d sources, %d errors",
-        company_name, len(sources_results), len(errors),
+        company_name,
+        len(sources_results),
+        len(errors),
     )
 
     return EnrichmentResult(
         company_name=company_name,
         sources=sources_results,
         errors=errors,
-        enriched=True,
+        enriched=bool(sources_results),
         **aggregated,
     )

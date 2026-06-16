@@ -27,7 +27,7 @@ git clone https://github.com/ghassan-ai-projects/berlin-insolvency-radar.git
 cd berlin-insolvency-radar
 uv sync --extra dev
 cp .env.example .env
-# Edit .env with your DEEPSEEK_API_KEY (or set BI_RADAR_USE_MOCK_AGENTS=true for local dev)
+# Edit .env with your DEEPSEEK_API_KEY
 ```
 
 Verify:
@@ -39,7 +39,7 @@ make check
 Dry-run the pipeline:
 
 ```bash
-uv run biradar phase2-check
+uv run biradar pipeline-check
 ```
 
 Start the MCP server:
@@ -77,6 +77,6 @@ and export formats.
 
 ## Status
 
-Pre-release development. Phase 0 (foundation), Phase 1 (legacy import and editorial
-workflow), and Phase 2 (autonomous agentic pipeline) are complete. 54 tests pass at
-81% coverage. Live portal integration and production hardening are in progress.
+Pre-release development with a production-oriented local workflow. The repository
+includes full local validation, a live portal path, and export-only workflow
+execution without external publishing.

@@ -41,22 +41,15 @@ def review_candidate_risk(
     """
     Review a candidate's drafted intelligence for compliance, legal, and evidence risks.
 
-    Falls back to passing if DEEPSEEK_API_KEY is not set.
+    Requires a live DeepSeek configuration. Callers that need deterministic local
+    verification should inject a stub reviewer instead of relying on runtime mocks.
     """
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
 
-    if not api_key or use_mock:
-        logger.warning(
-            "DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Risk review passing by default (mock)."
-        )
-        return RiskReviewResult(passed_review=True, confidence_in_review=0.5)
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is required for risk review")
 
     try:
         llm = ChatOpenAI(

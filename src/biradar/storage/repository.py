@@ -736,10 +736,17 @@ class EnrichmentRepository:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                enrichment_id, candidate_id, sector, employee_count_range,
-                funding_info, tech_stack, website_url,
-                str(website_status) if website_status else None, github_org,
-                patent_count, now,
+                enrichment_id,
+                candidate_id,
+                sector,
+                employee_count_range,
+                funding_info,
+                tech_stack,
+                website_url,
+                str(website_status) if website_status else None,
+                github_org,
+                patent_count,
+                now,
             ],
         )
         return enrichment_id

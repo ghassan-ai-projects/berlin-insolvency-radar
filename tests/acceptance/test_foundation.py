@@ -1,4 +1,4 @@
-"""Phase 0 Acceptance Tests for Foundation and Skeleton."""
+"""Acceptance tests for foundation and skeleton behavior."""
 
 import json
 import tempfile
@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from biradar.config.settings import load_config
-from biradar.graph.phase0_workflow import build_phase0_health_workflow
+from biradar.graph.health_workflow import build_health_workflow
 from biradar.mcp.server import call_radar_tool, create_mcp_server, list_radar_tools
 from biradar.services.container import AppContainer
-from biradar.storage.db import Database
+from biradar.storage.db import LATEST_SCHEMA_VERSION, Database
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def test_at_0_2_health_tool_works_on_fresh_db(container):
     result = call_radar_tool(container, "radar_health", {})
     assert result.ok is True
     assert result.data["database"]["connected"] is True
-    assert result.data["database"]["schema_version"] == "002_audit_table"
+    assert result.data["database"]["schema_version"] == LATEST_SCHEMA_VERSION
     assert result.data["counts"] == {}  # Empty on fresh DB
     assert "next_action" in result.data
 
@@ -84,7 +84,7 @@ def test_at_0_3_result_envelope_is_stable(container):
         "radar_audit_trail",
     ]
     assert "radar_list_source_runs" in tool_names
-    assert "radar_run_phase2_workflow" in tool_names
+    assert "radar_run_workflow" in tool_names
     assert "radar_notify_completion" not in tool_names
 
     # Test success envelope
@@ -158,7 +158,9 @@ def test_at_0_5_config_loads_and_validates(config_dir):
     assert "company_value" in config.scoring.weights
     assert "legacy_insolvency_scout" in config.sources
     assert config.sources["legacy_insolvency_scout"].mode == "read_only"
-    assert all(source.enabled is False for source in config.sources.values())
+    assert "official_insolvency_berlin" in config.sources
+    assert config.sources["official_insolvency_berlin"].enabled is True
+    assert config.enrichment.enabled is True
 
 
 def test_at_0_6_minimal_langgraph_workflow_runs(container):
@@ -170,12 +172,12 @@ def test_at_0_6_minimal_langgraph_workflow_runs(container):
         "SELECT COUNT(*) FROM source_runs"
     ).fetchone()[0]
 
-    workflow = build_phase0_health_workflow(container)
+    workflow = build_health_workflow(container)
     result = workflow.invoke({"actor": "test_user", "status": "running"})
 
     assert result["status"] == "success"
     assert result["database_connected"] is True
-    assert result["schema_version"] == "002_audit_table"
+    assert result["schema_version"] == LATEST_SCHEMA_VERSION
     assert result["candidate_count"] == before_candidates
     assert result["source_run_count"] == before_source_runs
     assert result["audit_id"].startswith("audit_")
@@ -192,7 +194,7 @@ def test_at_0_6_minimal_langgraph_workflow_runs(container):
     audit_result = call_radar_tool(
         container,
         "radar_audit_trail",
-        {"entity_type": "workflow", "entity_id": "phase0_health"},
+        {"entity_type": "workflow", "entity_id": "health_check"},
     )
     assert audit_result.ok is True
     assert audit_result.data[0]["audit_id"] == result["audit_id"]
