@@ -1,63 +1,82 @@
-# berlin-insolvency-radar
-Weekly curated intelligence newsletter — Berlin insolvency opportunity radar. Research, strategy, scoring, and pipeline automation for distressed company acquisitions.
+# Berlin Insolvency Radar
 
-## Phase 0 Skeleton
+AI-powered insolvency intelligence for Berlin. Monitors official insolvency filings,
+extracts structured facts, scores investment opportunities, and produces a ranked
+weekly newsletter — all through a typed MCP API.
 
-Phase 0 provides the safe local foundation:
+## Why BIRADAR
 
-- typed configuration from `config/`
-- DuckDB schema bootstrapping
-- stable MCP result envelopes
-- health and audit tools
-- deterministic domain modules
-- a minimal auditable LangGraph health workflow
+Berlin sees 60–180 actionable corporate insolvencies per year. Investors, turnaround
+professionals, and analysts currently sift through raw court notices manually.
+BIRADAR automates the pipeline: scrape, extract, enrich, score, review, and export
+— with deterministic guardrails, full audit trails, and fail-closed safety.
 
-Phase 0 intentionally does not enable live scraping, email sending, alerting, or external publishing.
+## What It Does
 
-## Setup
+- **Scrapes** the official Berlin insolvency portal with JSF session management
+- **Extracts** structured facts from raw notices via LLM (DeepSeek) with prompt hardening
+- **Enriches** candidates with public-source data
+- **Scores** opportunities deterministically across 5 weighted dimensions (1–5 scale)
+- **Reviews** for legal, compliance, and evidence risks with self-correcting retry logic
+- **Exports** ranked Markdown newsletter drafts with audit trails and disclaimers
 
-Use `uv` so the project runs with the declared Python 3.12+ environment:
+## Quick Start
 
 ```bash
+git clone https://github.com/ghassan-ai-projects/berlin-insolvency-radar.git
+cd berlin-insolvency-radar
 uv sync --extra dev
+cp .env.example .env
+# Edit .env with your DEEPSEEK_API_KEY (or set BI_RADAR_USE_MOCK_AGENTS=true for local dev)
 ```
 
-## Verify Phase 0
-
-Run the full Phase 0 gate:
+Verify:
 
 ```bash
-uv run make phase0-check
+make check
 ```
 
-`make check` is an alias for the same Phase 0 gate.
-
-Useful narrower checks:
+Dry-run the pipeline:
 
 ```bash
-uv run make test
-uv run make test-acceptance
-uv run pyright src/biradar
+uv run biradar phase2-check
 ```
 
-## Local Startup
-
-Validate config:
+Start the MCP server:
 
 ```bash
-uv run biradar check
+uv run biradar serve
 ```
 
-Initialize the local DuckDB database and list the MCP v0 tools:
+## Documentation
 
-```bash
-uv run biradar mcp-info
-```
+- [Product Overview](documentation/product-overview.md) — What it is, who it's for
+- [Getting Started](documentation/getting-started.md) — Setup and first pipeline run
+- [How It Works](documentation/how-it-works.md) — Pipeline flow and data lifecycle
+- [Architecture](documentation/architecture.md) — 6-layer design and key decisions
+- [MCP API](documentation/mcp-api.md) — Tool catalog and result envelope contract
+- [Configuration](documentation/configuration.md) — YAML config and environment variables
+- [Scoring Model](documentation/scoring-model.md) — Weighted 5-dimension formula
+- [Data Sources](documentation/data-sources.md) — Official portal and enrichment sources
+- [Legal & Compliance](documentation/legal-and-compliance.md) — GDPR, press law, corporate-only filtering
+- [Testing Standards](documentation/testing-standards.md) — Test tiers and coverage targets
+- [Security Model](documentation/security-model.md) — Threat model and hardening measures
 
-Run the MCP server over stdio:
+## Open Source
 
-```bash
-uv run biradar serve-mcp
-```
+- [License](LICENSE) — MIT
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Support](SUPPORT.md)
 
-The default database path is `data/radar.duckdb`. The legacy Insolvency Scout database is configured as read-only input and must not be used as the active radar database.
+MIT was chosen because the core value is the data pipeline and intelligence output,
+not the code. The project benefits from community contributions to scrapers, agents,
+and export formats.
+
+## Status
+
+Pre-release development. Phase 0 (foundation), Phase 1 (legacy import and editorial
+workflow), and Phase 2 (autonomous agentic pipeline) are complete. 54 tests pass at
+81% coverage. Live portal integration and production hardening are in progress.

@@ -27,21 +27,23 @@ def _load_env_from_file():
 def test_phase2_pipeline_live_portal_e2e():
     """
     Test the Phase 2 pipeline end-to-end against the LIVE official portal.
-    
+
     This validates that:
     1. The JSF session initialization and form submission works against the real portal.
     2. The DeepSeek API is successfully called for extraction and risk review.
     3. The pipeline produces a valid local export without human intervention.
-    
-    Note: This test makes real network requests and API calls. 
+
+    Note: This test makes real network requests and API calls.
     Run with: uv run pytest -m live
     """
     _load_env_from_file()
-    assert os.environ.get("DEEPSEEK_API_KEY"), "DEEPSEEK_API_KEY must be set for live E2E tests"
+    assert os.environ.get("DEEPSEEK_API_KEY"), (
+        "DEEPSEEK_API_KEY must be set for live E2E tests"
+    )
     # Override conftest's mock-agent default — this live test needs the real API
     os.environ.pop("BI_RADAR_USE_MOCK_AGENTS", None)
 
-    # Use a recent, small date window (e.g., 2 days ago to today) 
+    # Use a recent, small date window (e.g., 2 days ago to today)
     # to minimize API cost and execution time while still hitting live data.
     today = date.today()
     start_date = today - timedelta(days=2)
@@ -49,7 +51,7 @@ def test_phase2_pipeline_live_portal_e2e():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "live_phase2.duckdb"
-        
+
         result = run_phase2_pipeline(
             start_date=start_date,
             end_date=end_date,
@@ -62,24 +64,29 @@ def test_phase2_pipeline_live_portal_e2e():
         # The pipeline should complete. It might find 0 records if none were published,
         # but the execution itself must succeed and not crash due to JSF/API errors.
         assert result["status"] == "success", f"Pipeline failed: {result.get('error')}"
-        
+
         # Verify source run was created and attempted live
         from biradar.storage.db import Database
+
         db = Database(db_path)
         try:
             source_runs = db.conn.execute(
                 "SELECT COUNT(*), SUM(records_seen) FROM source_runs WHERE run_type = 'scheduled_scrape'"
             ).fetchone()
-            assert source_runs is not None and source_runs[0] >= 1, "Expected at least one live source run to be recorded"
-            
+            assert source_runs is not None and source_runs[0] >= 1, (
+                "Expected at least one live source run to be recorded"
+            )
+
             # Check if the run had anti-bot blocks or other errors
             run_details = db.conn.execute(
                 "SELECT status, error_json FROM source_runs WHERE run_type = 'scheduled_scrape' LIMIT 1"
             ).fetchone()
             if run_details:
-                status, error_json = run_details
-                assert status in ("completed", "failed"), f"Unexpected source run status: {status}"
-                # We don't fail the test if there are errors, as the portal might legitimately 
+                status, _error_json = run_details
+                assert status in ("completed", "failed"), (
+                    f"Unexpected source run status: {status}"
+                )
+                # We don't fail the test if there are errors, as the portal might legitimately
                 # return 0 results or block us, but we log it. The key is the pipeline handled it gracefully.
         finally:
             db.close()
@@ -90,4 +97,7 @@ def test_phase2_pipeline_live_portal_e2e():
             assert export_path.exists(), "Export file should exist"
             export_text = export_path.read_text(encoding="utf-8")
             # Validate structural integrity of the export
-            assert "## Disclaimer" in export_text or "No publish-ready candidates" in export_text, "Export missing expected structural sections"
+            assert (
+                "## Disclaimer" in export_text
+                or "No publish-ready candidates" in export_text
+            ), "Export missing expected structural sections"

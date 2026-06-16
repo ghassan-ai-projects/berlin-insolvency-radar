@@ -36,10 +36,16 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in ("1", "true", "yes")
+    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     if not api_key or use_mock:
-        logger.warning("DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Returning mock extraction result.")
+        logger.warning(
+            "DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Returning mock extraction result."
+        )
         return ExtractionResult(
             company_name="Mock GmbH",
             legal_form="GmbH",
@@ -49,7 +55,10 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
             proceeding_stage="Eröffnungsbeschluss",
             is_consumer_likely=False,
             field_confidence_scores={"company_name": 0.9, "case_number": 0.9},
-            evidence_snippets={"company_name": "Mock GmbH", "case_number": "36e IN 123/26"}
+            evidence_snippets={
+                "company_name": "Mock GmbH",
+                "case_number": "36e IN 123/26",
+            },
         )
 
     try:
@@ -58,12 +67,14 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
             openai_api_base=api_base,
             model=model_name,
             temperature=0.0,
-            model_kwargs={"response_format": {"type": "json_object"}}
+            model_kwargs={"response_format": {"type": "json_object"}},
         )
 
         base_prompt = load_prompt("extraction")
         safe_prompt = base_prompt.replace("{", "{{").replace("}", "}}")
-        safe_prompt = safe_prompt.replace("{{text}}", "{text}").replace("{{source_url}}", "{source_url}")
+        safe_prompt = safe_prompt.replace("{{text}}", "{text}").replace(
+            "{{source_url}}", "{source_url}"
+        )
         full_prompt = (
             safe_prompt
             + "\n\n<raw_notice>\n{text}\n</raw_notice>\n"
@@ -79,9 +90,15 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
             result = chain.invoke({"text": raw_text, "source_url": source_url})
             return result
         except Exception as structured_err:
-            logger.warning(f"Structured output failed, falling back to manual JSON parse: {structured_err}")
-            response = llm.invoke(full_prompt.format(text=raw_text, source_url=source_url))
-            content = response.content if hasattr(response, "content") else str(response)
+            logger.warning(
+                f"Structured output failed, falling back to manual JSON parse: {structured_err}"
+            )
+            response = llm.invoke(
+                full_prompt.format(text=raw_text, source_url=source_url)
+            )
+            content = (
+                response.content if hasattr(response, "content") else str(response)
+            )
             parsed = robust_json_parse(content)
             return ExtractionResult(**parsed)
     except Exception as e:

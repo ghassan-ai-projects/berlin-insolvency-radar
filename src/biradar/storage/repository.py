@@ -7,10 +7,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from biradar.domain.validation import validate_date_field
+from biradar.storage.db import Database
 
 logger = logging.getLogger(__name__)
-
-from biradar.storage.db import Database
 
 
 class AuditRepository:

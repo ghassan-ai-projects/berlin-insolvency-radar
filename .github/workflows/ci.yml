@@ -1,0 +1,51 @@
+# GitHub Actions CI for Berlin Insolvency Radar
+#
+# Runs on push/PR to main.
+# Pipeline: format → lint → typecheck → test → test-acceptance → test-e2e
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  ci:
+    name: "BIRADAR CI"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Format check
+        run: uv run ruff format --check src/biradar tests
+
+      - name: Lint
+        run: uv run ruff check src/biradar tests
+
+      - name: Typecheck
+        run: uv run pyright src/biradar
+
+      - name: Unit tests
+        run: uv run pytest tests/unit --cov=src/biradar --cov-report=term-missing
+
+      - name: Acceptance tests
+        run: uv run pytest tests/acceptance --cov=src/biradar --cov-report=term-missing
+
+      - name: E2E tests (excluding live)
+        run: uv run pytest tests/e2e -m "not live" --cov=src/biradar --cov-report=term-missing

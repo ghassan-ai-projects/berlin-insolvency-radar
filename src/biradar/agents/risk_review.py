@@ -15,18 +15,28 @@ logger = get_logger(__name__)
 
 
 class RiskReviewResult(BaseModel):
-    passed_review: bool = Field(description="Whether the candidate passed the risk review.")
-    rejection_reasons: list[str] | None = Field(default=None, description="Reasons for rejection if failed.")
-    actionable_feedback_for_analyst: str | None = Field(default=None, description="Feedback for the analyst agent to fix the draft.")
-    flagged_unsupported_claims: list[str] = Field(default_factory=list, description="Specific claims lacking evidence.")
-    confidence_in_review: float = Field(ge=0.0, le=1.0, description="Confidence in this review decision.")
+    passed_review: bool = Field(
+        description="Whether the candidate passed the risk review."
+    )
+    rejection_reasons: list[str] | None = Field(
+        default=None, description="Reasons for rejection if failed."
+    )
+    actionable_feedback_for_analyst: str | None = Field(
+        default=None, description="Feedback for the analyst agent to fix the draft."
+    )
+    flagged_unsupported_claims: list[str] = Field(
+        default_factory=list, description="Specific claims lacking evidence."
+    )
+    confidence_in_review: float = Field(
+        ge=0.0, le=1.0, description="Confidence in this review decision."
+    )
 
 
 def review_candidate_risk(
     candidate_data: dict[str, Any],
     extraction_data: dict[str, Any],
     enrichment_data: dict[str, Any],
-    draft_thesis: str
+    draft_thesis: str,
 ) -> RiskReviewResult:
     """
     Review a candidate's drafted intelligence for compliance, legal, and evidence risks.
@@ -36,14 +46,17 @@ def review_candidate_risk(
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in ("1", "true", "yes")
+    use_mock = os.environ.get("BI_RADAR_USE_MOCK_AGENTS", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     if not api_key or use_mock:
-        logger.warning("DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Risk review passing by default (mock).")
-        return RiskReviewResult(
-            passed_review=True,
-            confidence_in_review=0.5
+        logger.warning(
+            "DEEPSEEK_API_KEY not set or BI_RADAR_USE_MOCK_AGENTS enabled. Risk review passing by default (mock)."
         )
+        return RiskReviewResult(passed_review=True, confidence_in_review=0.5)
 
     try:
         llm = ChatOpenAI(
@@ -51,7 +64,7 @@ def review_candidate_risk(
             openai_api_base=api_base,
             model=model_name,
             temperature=0.0,
-            model_kwargs={"response_format": {"type": "json_object"}}
+            model_kwargs={"response_format": {"type": "json_object"}},
         )
 
         review_context = (
@@ -86,15 +99,19 @@ def review_candidate_risk(
             result = chain.invoke({"context": review_context})
             return result
         except Exception as structured_err:
-            logger.warning(f"Structured output failed, falling back to manual JSON parse: {structured_err}")
+            logger.warning(
+                f"Structured output failed, falling back to manual JSON parse: {structured_err}"
+            )
             response = llm.invoke(full_prompt.format(context=review_context))
-            content = response.content if hasattr(response, "content") else str(response)
+            content = (
+                response.content if hasattr(response, "content") else str(response)
+            )
             parsed = robust_json_parse(content)
             return RiskReviewResult(**parsed)
     except Exception as e:
         logger.error(f"Risk review failed: {e}")
         return RiskReviewResult(
             passed_review=False,
-            rejection_reasons=[f"Review system error: {str(e)}"],
-            confidence_in_review=0.0
+            rejection_reasons=[f"Review system error: {e!s}"],
+            confidence_in_review=0.0,
         )

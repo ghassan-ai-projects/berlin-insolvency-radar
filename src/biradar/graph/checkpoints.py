@@ -4,17 +4,18 @@ from pathlib import Path
 
 from langgraph.checkpoint.memory import MemorySaver
 
-from biradar.config.settings import get_settings
 from biradar.observability.logging import get_logger
 
 logger = get_logger(__name__)
 
 try:
     import sqlite3
+
     from langgraph.checkpoint.sqlite import SqliteSaver  # type: ignore[attr-defined]
 except ModuleNotFoundError:  # pragma: no cover - depends on installed extras
     sqlite3 = None
     SqliteSaver = None
+
 
 class CheckpointManager:
     """Manage checkpointing with a SQLite saver when available, else memory saver."""
@@ -29,10 +30,15 @@ class CheckpointManager:
             self._conn.execute("PRAGMA journal_mode=WAL;")
             self.db_path.chmod(0o600)
             self.saver = SqliteSaver(self._conn)
-            logger.info("Using SQLite LangGraph checkpoint saver", extra={"path": str(self.db_path)})
+            logger.info(
+                "Using SQLite LangGraph checkpoint saver",
+                extra={"path": str(self.db_path)},
+            )
         else:
             self.saver = MemorySaver()
-            logger.warning("SQLite LangGraph checkpoint saver unavailable; using in-memory saver")
+            logger.warning(
+                "SQLite LangGraph checkpoint saver unavailable; using in-memory saver"
+            )
 
     @property
     def saver_instance(self):
@@ -55,5 +61,9 @@ class CheckpointManager:
             return
         with sqlite3.connect(str(self.db_path)) as conn:
             conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-            conn.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
-        logger.info("Cleared checkpoint history for thread", extra={"thread_id": thread_id})
+            conn.execute(
+                "DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,)
+            )
+        logger.info(
+            "Cleared checkpoint history for thread", extra={"thread_id": thread_id}
+        )
