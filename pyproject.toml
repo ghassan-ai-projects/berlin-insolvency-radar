@@ -65,6 +65,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/biradar/cli/**/*.py" = ["T201"]  # CLI uses print() for output
 "tests/fixtures/**/*.py" = ["T201"]   # Fixture build scripts use print()
+"scripts/**/*.py" = ["T201"]          # Utility scripts use print()
 "tests/**/*.py" = ["S101", "S608"]    # assert in tests; table names in test queries
 
 [tool.pyright]

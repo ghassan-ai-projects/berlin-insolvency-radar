@@ -1,6 +1,6 @@
 # Pipeline Optimization — Implementation Plan
 
-**Based on:** `docs/pipeline-optimization-analysis.md`  
+**Based on:** `docs/pipeline-optimization-analysis.md`
 **Principle:** Think → Plan → Do. One fix at a time.
 
 ---
@@ -26,8 +26,8 @@ Fix 5 (MEDIUM)   ──┘── depends on Fix 1 (tests the new guards)
 2. `scoring_node` — before scoring, `if candidate_id in scores and scores[candidate_id].get("status") == "approved": continue`
 3. `enrichment_node` — init `enrichment_results = dict(state.get("enrichment_results", {}))`. Before enrichment call, `if candidate_id in enrichment_results: continue`
 
-**Files:** `src/biradar/graph/pipeline_workflow.py` only  
-**Risk:** Low — additive guards, no behavior change for first-pass candidates  
+**Files:** `src/biradar/graph/pipeline_workflow.py` only
+**Risk:** Low — additive guards, no behavior change for first-pass candidates
 **Test:** Existing tests pass. Fix 5 will validate the retry path.
 
 ---
@@ -41,8 +41,8 @@ Fix 5 (MEDIUM)   ──┘── depends on Fix 1 (tests the new guards)
 2. If a run exists whose `start_date <= requested_start AND end_date >= requested_end`, skip fetch, return cached records from `raw_records` table
 3. If partial overlap, adjust `start_date`/`end_date` to only the uncovered portion
 
-**Files:** `src/biradar/services/pipeline.py`, `src/biradar/sources/official_portal.py`, `src/biradar/storage/repository.py`  
-**Risk:** Medium — changes to scraping logic. Need to verify with both fixture and live modes.  
+**Files:** `src/biradar/services/pipeline.py`, `src/biradar/sources/official_portal.py`, `src/biradar/storage/repository.py`
+**Risk:** Medium — changes to scraping logic. Need to verify with both fixture and live modes.
 **Test:** `pipeline-check` runs twice on same DB (already tests idempotency). Add assertion that second run hits 0 new raw records.
 
 ---
@@ -53,11 +53,11 @@ Fix 5 (MEDIUM)   ──┘── depends on Fix 1 (tests the new guards)
 
 **Plan:**
 1. Collect all `(candidate_id, field)` pairs that would be inserted
-2. Batch `SELECT candidate_id, field FROM evidence WHERE (candidate_id, field) IN (...)` 
+2. Batch `SELECT candidate_id, field FROM evidence WHERE (candidate_id, field) IN (...)`
 3. Skip hash computation and insert for pairs that already exist
 
-**Files:** `src/biradar/services/pipeline.py`, `src/biradar/storage/repository.py`  
-**Risk:** Low — additive optimization  
+**Files:** `src/biradar/services/pipeline.py`, `src/biradar/storage/repository.py`
+**Risk:** Low — additive optimization
 **Test:** `pipeline-check` runs twice, verify evidence count stays stable.
 
 ---
@@ -70,8 +70,8 @@ Fix 5 (MEDIUM)   ──┘── depends on Fix 1 (tests the new guards)
 1. Call `_reset_disabled_sources()` at the start of `run_pipeline()` (production path)
 2. Or: clear at the start of each `enrich_candidate()` call (safer, per-candidate isolation)
 
-**Files:** `src/biradar/sources/enrichment.py`, `src/biradar/services/pipeline.py`  
-**Risk:** Low  
+**Files:** `src/biradar/sources/enrichment.py`, `src/biradar/services/pipeline.py`
+**Risk:** Low
 **Test:** Add unit test: enrich candidate → disable source → enrich another candidate → assert source is re-enabled.
 
 ---
@@ -85,8 +85,8 @@ Fix 5 (MEDIUM)   ──┘── depends on Fix 1 (tests the new guards)
 2. Run pipeline with 2 candidates, 1 failing review initially
 3. Assert: 2 extractions total (not 3+), both candidates reach publish_ready
 
-**Files:** `tests/e2e/test_pipeline.py`  
-**Risk:** Low  
+**Files:** `tests/e2e/test_pipeline.py`
+**Risk:** Low
 **Depends on:** Fix 1 (guards must be in place for assertion to hold)
 
 ---

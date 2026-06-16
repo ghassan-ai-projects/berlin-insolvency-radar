@@ -1,7 +1,7 @@
 # Phase 2 — Remaining Fixes Plan
 
-**Date:** 2026-06-16  
-**Based on:** `berlin-insolvency-radar-analysis.md` handoff document  
+**Date:** 2026-06-16
+**Based on:** `berlin-insolvency-radar-analysis.md` handoff document
 **Status:** In progress
 
 ---

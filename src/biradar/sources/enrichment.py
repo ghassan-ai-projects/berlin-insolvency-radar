@@ -137,7 +137,12 @@ def _http_get(url: str) -> httpx.Response | None:
                 text_lower = (resp.text or "")[:2000].lower()
                 if any(
                     marker in text_lower
-                    for marker in ("cloudflare", "cf-challenge", "captcha", "access denied")
+                    for marker in (
+                        "cloudflare",
+                        "cf-challenge",
+                        "captcha",
+                        "access denied",
+                    )
                 ):
                     logger.debug("Anti-bot block fetching %s (skipping)", url)
                     return None
@@ -366,7 +371,12 @@ def lookup_website(company_name: str) -> dict[str, Any] | None:
                 text_lower = (resp.text or "")[:2000].lower()
                 if any(
                     marker in text_lower
-                    for marker in ("cloudflare", "cf-challenge", "captcha", "access denied")
+                    for marker in (
+                        "cloudflare",
+                        "cf-challenge",
+                        "captcha",
+                        "access denied",
+                    )
                 ):
                     logger.debug("Anti-bot block on %s (skipping)", url)
                     continue

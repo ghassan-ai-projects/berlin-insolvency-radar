@@ -373,10 +373,16 @@ class SourceRunRepository:
                 continue
             try:
                 import json
+
                 params = json.loads(params_json)
                 run_start = params.get("start_date")
                 run_end = params.get("end_date")
-                if run_start and run_end and run_start <= start_date and run_end >= end_date:
+                if (
+                    run_start
+                    and run_end
+                    and run_start <= start_date
+                    and run_end >= end_date
+                ):
                     return run_id
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -458,9 +464,7 @@ class EvidenceRepository:
     def __init__(self, db: Database):
         self.db = db
 
-    def get_existing_fields(
-        self, candidate_ids: list[str]
-    ) -> set[tuple[str, str]]:
+    def get_existing_fields(self, candidate_ids: list[str]) -> set[tuple[str, str]]:
         """Return set of (candidate_id, field) pairs that already have evidence."""
         if not candidate_ids:
             return set()

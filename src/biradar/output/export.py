@@ -72,7 +72,11 @@ def generate_markdown_draft(issue_data: dict[str, Any], export_dir: Path) -> str
         editorial = content_sections.get("editorial", {})
 
         lines.append(f"### {i}. {name} ({legal_form})")
-        score_display = f"{computed_score:.2f}" if isinstance(computed_score, (int, float)) else str(computed_score)
+        score_display = (
+            f"{computed_score:.2f}"
+            if isinstance(computed_score, (int, float))
+            else str(computed_score)
+        )
         lines.append(f"- **Radar Score:** {score_display} ({category})")
         lines.append(f"- **Confidence:** {export_confidence}")
         lines.append(f"- **Status:** {candidate.get('status', 'unknown')}")

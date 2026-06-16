@@ -414,7 +414,9 @@ def run_pipeline(
         # These records skip extraction + enrichment on re-runs.
         already_processed_ids: list[str] = []
         if not dry_run and raw_records:
-            raw_ids = [r.get("raw_record_id") for r in raw_records if r.get("raw_record_id")]
+            raw_ids = [
+                r.get("raw_record_id") for r in raw_records if r.get("raw_record_id")
+            ]
             if raw_ids:
                 placeholders = ",".join("?" * len(raw_ids))
                 already_processed_ids = [

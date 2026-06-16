@@ -1,9 +1,9 @@
 """Bridge: import legacy insolvency_scout.duckdb into biradar."""
 
-import sys
 import uuid
-import duckdb
 from pathlib import Path
+
+import duckdb
 
 # Build a compatible DuckDB from the legacy scout data
 scout_db = Path("data") / "insolvency_scout.duckdb"
@@ -46,7 +46,19 @@ for row in rows:
 
     # Parse legal_form from name (GmbH, UG, AG, etc.)
     legal_form = None
-    for form in ["GmbH & Co. KG", "UG (haftungsbeschränkt)", "GmbH", "UG", "AG", "SE", "e.K.", "KG", "OHG", "PartG", "GmbH & Co. OHG"]:
+    for form in [
+        "GmbH & Co. KG",
+        "UG (haftungsbeschränkt)",
+        "GmbH",
+        "UG",
+        "AG",
+        "SE",
+        "e.K.",
+        "KG",
+        "OHG",
+        "PartG",
+        "GmbH & Co. OHG",
+    ]:
         if form in name:
             legal_form = form
             break
@@ -69,24 +81,27 @@ for row in rows:
     pub_type = filing_type or ""
     source_url = url or ""
 
-    compat.execute("""
+    compat.execute(
+        """
         INSERT INTO filings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        id_ or str(uuid.uuid4()),
-        name or "",
-        legal_form or "",
-        court or "",
-        case_number or "",
-        register_number or "",
-        pub_date,
-        pub_type,
-        source_url,
-        raw_text or "",
-        scraped_at or ""
-    ])
+    """,
+        [
+            id_ or str(uuid.uuid4()),
+            name or "",
+            legal_form or "",
+            court or "",
+            case_number or "",
+            register_number or "",
+            pub_date,
+            pub_type,
+            source_url,
+            raw_text or "",
+            scraped_at or "",
+        ],
+    )
     inserted += 1
 
 conn.close()
 compat.close()
 print(f"Built compat DB: {inserted} rows at {compat_db}")
-print(f"Now run: uv run biradar legacy-import data/insolvency_scout_compat.duckdb")
+print("Now run: uv run biradar legacy-import data/insolvency_scout_compat.duckdb")
