@@ -1,14 +1,14 @@
 # Phase 2 Implementation Plan: Fully Agentic Local Pipeline
 
-**Date:** 2026-06-16  
-**Status:** Revised after review  
+**Date:** 2026-06-16
+**Status:** Revised after review
 **Scope:** End-to-end autonomous local workflow from official portal acquisition to export-ready issue artifacts, without human review, paid sources, or external publishing.
 
 ---
 
 ## 1. Executive Summary
 
-Phase 2 transitions the Berlin Insolvency Radar from a human-in-the-loop MCP v0/Phase 1 system to a **fully agentic, local-only pipeline**. The system will autonomously ingest data from `neu.insolvenzbekanntmachungen.de`, normalize, extract, enrich, score, risk-review, and assemble export-ready Markdown/JSON issue packages. 
+Phase 2 transitions the Berlin Insolvency Radar from a human-in-the-loop MCP v0/Phase 1 system to a **fully agentic, local-only pipeline**. The system will autonomously ingest data from `neu.insolvenzbekanntmachungen.de`, normalize, extract, enrich, score, risk-review, and assemble export-ready Markdown/JSON issue packages.
 
 **Core Principle:** Agents execute the workflow; deterministic code verifies guardrails; logs remember everything. No human review is required for the pipeline to complete, and no paid APIs or datasets are used.
 

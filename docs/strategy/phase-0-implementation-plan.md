@@ -1,7 +1,7 @@
 # Phase 0 Implementation Plan: Foundation & MCP v0
 
-**Date:** 2026-06-15  
-**Goal:** Build the smallest viable, safe, and auditable application skeleton for the Berlin Insolvency Radar.  
+**Date:** 2026-06-15
+**Goal:** Build the smallest viable, safe, and auditable application skeleton for the Berlin Insolvency Radar.
 **Status:** Complete
 
 ---

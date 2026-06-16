@@ -1,6 +1,6 @@
 # Open-Source Readiness Plan — Berlin Insolvency Radar
 
-**Date:** 2026-06-16  
+**Date:** 2026-06-16
 **Reference project:** ALMS (`/Users/ghassan/my-projects/alms`)
 
 ## Overview
@@ -68,7 +68,7 @@ Follow ALMS README structure:
 1. Title: `# Berlin Insolvency Radar`
 2. Tagline: What it is, its value proposition
 3. `## Why BIRADAR` — the problem it solves
-4. `## What It Does` — feature list  
+4. `## What It Does` — feature list
 5. `## Quick Start` — `uv sync`, `make check`, MCP server start
 6. `## Documentation` — links to all `documentation/` files
 7. `## Open Source` — links to governance files + MIT rationale

@@ -1,7 +1,7 @@
 # Code Quality Review — Berlin Insolvency Radar
 
-**Date:** 2026-06-16  
-**Scope:** Full codebase — architecture, security, maintainability, performance  
+**Date:** 2026-06-16
+**Scope:** Full codebase — architecture, security, maintainability, performance
 **Verdict:** Architecture is solid but has 1 critical bug, 2 high-severity issues, and ~15 medium/low findings. Fix the critical and high items before production.
 
 ---

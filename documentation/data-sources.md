@@ -2,7 +2,7 @@
 
 ## Official Insolvency Portal (Berlin)
 
-**Source:** `neu.insolvenzbekanntmachungen.de`  
+**Source:** `neu.insolvenzbekanntmachungen.de`
 **Trust Level:** A (authoritative)
 
 The primary data source. Berlin insolvency filings are published here by German courts.

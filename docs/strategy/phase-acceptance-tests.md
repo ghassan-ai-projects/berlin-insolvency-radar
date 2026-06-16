@@ -63,9 +63,9 @@ Phase 0 does **not** need legacy import, candidate review, scoring approval, or 
 
 #### AT-0.1 Fresh Database Boot
 
-**Given** a clean temporary workspace with no database file  
-**When** the application initializes storage  
-**Then** it creates a DuckDB database with the expected schema version  
+**Given** a clean temporary workspace with no database file
+**When** the application initializes storage
+**Then** it creates a DuckDB database with the expected schema version
 **And** required tables exist:
 
 - `schema_migrations`
@@ -85,9 +85,9 @@ Phase 0 does **not** need legacy import, candidate review, scoring approval, or 
 
 #### AT-0.2 Health Tool Works On Fresh DB
 
-**Given** a fresh initialized DuckDB database  
-**When** `radar_health` is called  
-**Then** it returns `ok: true`  
+**Given** a fresh initialized DuckDB database
+**When** `radar_health` is called
+**Then** it returns `ok: true`
 **And** reports:
 
 - database connected
@@ -101,8 +101,8 @@ Phase 0 does **not** need legacy import, candidate review, scoring approval, or 
 
 #### AT-0.3 Result Envelope Is Stable
 
-**Given** any v0 MCP tool handler  
-**When** it succeeds or fails validation  
+**Given** any v0 MCP tool handler
+**When** it succeeds or fails validation
 **Then** the response uses the shared envelope:
 
 - `ok`
@@ -122,9 +122,9 @@ Phase 0 does **not** need legacy import, candidate review, scoring approval, or 
 
 #### AT-0.4 Audit Event Can Be Written And Read
 
-**Given** an initialized database  
-**When** a test audit event is written through the audit service  
-**Then** `radar_audit_trail` can retrieve it  
+**Given** an initialized database
+**When** a test audit event is written through the audit service
+**Then** `radar_audit_trail` can retrieve it
 **And** it includes:
 
 - actor
@@ -139,29 +139,29 @@ Phase 0 does **not** need legacy import, candidate review, scoring approval, or 
 
 #### AT-0.5 Config Loads And Validates
 
-**Given** default config files for scoring and sources  
-**When** the app starts  
-**Then** config loads into typed models  
-**And** invalid config fails with an actionable error  
+**Given** default config files for scoring and sources
+**When** the app starts
+**Then** config loads into typed models
+**And** invalid config fails with an actionable error
 **And** no secret value is required for Phase 0.
 
 **Done means:** settings are explicit and not hidden in code.
 
 #### AT-0.6 Minimal LangGraph Workflow Runs
 
-**Given** a no-op or health-check LangGraph workflow  
-**When** it is invoked through the application layer  
-**Then** it returns a typed final state  
-**And** records a workflow/audit marker  
+**Given** a no-op or health-check LangGraph workflow
+**When** it is invoked through the application layer
+**Then** it returns a typed final state
+**And** records a workflow/audit marker
 **And** does not write candidates or source records.
 
 **Done means:** LangGraph is integrated from v0 without pretending the agentic workflow is finished.
 
 #### AT-0.7 Safety Defaults
 
-**Given** a Phase 0 build  
-**When** tests inspect available tools and config  
-**Then** there is no enabled external publishing, email sending, alert sending, or live scraper schedule  
+**Given** a Phase 0 build
+**When** tests inspect available tools and config
+**Then** there is no enabled external publishing, email sending, alert sending, or live scraper schedule
 **And** any legacy DB path is treated as read-only.
 
 **Done means:** the skeleton cannot accidentally become a production sender or parallel pipeline.
@@ -227,21 +227,21 @@ Fixtures can be built from sanitized legacy records or handcrafted samples.
 
 #### AT-1.0 Legacy Production DB Is Never Mutated
 
-**Given** a legacy DuckDB input path  
-**And** its file size, modified time, and content hash are recorded before import  
-**When** `radar_import_legacy_scout` runs in dry-run or real-import mode  
-**Then** the legacy DuckDB file is opened read-only  
-**And** the repo-owned DuckDB receives all writes  
-**And** the legacy file size, modified time, and content hash are unchanged after import  
+**Given** a legacy DuckDB input path
+**And** its file size, modified time, and content hash are recorded before import
+**When** `radar_import_legacy_scout` runs in dry-run or real-import mode
+**Then** the legacy DuckDB file is opened read-only
+**And** the repo-owned DuckDB receives all writes
+**And** the legacy file size, modified time, and content hash are unchanged after import
 **And** the import fails if the legacy input path points to `data/radar.duckdb`.
 
 **Done means:** the old database is treated as production input, not as this project's working database.
 
 #### AT-1.1 Legacy Import Dry Run Writes Nothing
 
-**Given** a fixture legacy DuckDB or fixture import provider with mixed records  
-**When** `radar_import_legacy_scout` is called with `dry_run: true`  
-**Then** it returns `ok: true`  
+**Given** a fixture legacy DuckDB or fixture import provider with mixed records
+**When** `radar_import_legacy_scout` is called with `dry_run: true`
+**Then** it returns `ok: true`
 **And** reports:
 
 - raw records seen
@@ -257,29 +257,29 @@ Fixtures can be built from sanitized legacy records or handcrafted samples.
 
 #### AT-1.2 Legacy Import Real Run Is Idempotent
 
-**Given** the same fixture legacy input  
-**When** `radar_import_legacy_scout` is called with `dry_run: false` twice  
-**Then** the second run does not create duplicate candidates  
-**And** duplicate source rows link to the same canonical candidate  
+**Given** the same fixture legacy input
+**When** `radar_import_legacy_scout` is called with `dry_run: false` twice
+**Then** the second run does not create duplicate candidates
+**And** duplicate source rows link to the same canonical candidate
 **And** both import attempts are visible through source-run/audit history.
 
 **Done means:** repeated agent runs are safe.
 
 #### AT-1.3 Corporate Filter Allows Only Supported Company Forms
 
-**Given** imported fixture records  
-**When** the import workflow applies the corporate filter  
-**Then** GmbH, UG, AG, KG, OHG, GmbH & Co. KG, eG, and SE records can become candidates  
-**And** consumer, personal, sole-proprietor, or unclear records become `quarantined`, `rejected`, or `needs_review` according to policy  
+**Given** imported fixture records
+**When** the import workflow applies the corporate filter
+**Then** GmbH, UG, AG, KG, OHG, GmbH & Co. KG, eG, and SE records can become candidates
+**And** consumer, personal, sole-proprietor, or unclear records become `quarantined`, `rejected`, or `needs_review` according to policy
 **And** quarantined records cannot reach `publish_ready`.
 
 **Done means:** compliance is enforced by code, not prompt text.
 
 #### AT-1.4 Candidate List Defaults To Agent Work Queue
 
-**Given** imported candidates in several statuses  
-**When** `radar_list_candidates` is called without filters  
-**Then** it returns candidates needing work first  
+**Given** imported candidates in several statuses
+**When** `radar_list_candidates` is called without filters
+**Then** it returns candidates needing work first
 **And** each summary includes:
 
 - candidate id
@@ -297,8 +297,8 @@ Fixtures can be built from sanitized legacy records or handcrafted samples.
 
 #### AT-1.5 Candidate Detail Shows Evidence And Lineage
 
-**Given** an imported candidate  
-**When** `radar_get_candidate` is called  
+**Given** an imported candidate
+**When** `radar_get_candidate` is called
 **Then** it returns:
 
 - normalized candidate fields
@@ -315,64 +315,64 @@ Fixtures can be built from sanitized legacy records or handcrafted samples.
 
 #### AT-1.6 Review Approves Candidate And Score
 
-**Given** a `review_ready` corporate candidate with evidence  
-**When** `radar_review_candidate` is called with `decision: approve` and valid score dimensions  
-**Then** the candidate moves to `publish_ready`  
-**And** a deterministic score is computed  
-**And** a score row is stored as approved  
-**And** a review row is stored  
-**And** an audit event is written  
+**Given** a `review_ready` corporate candidate with evidence
+**When** `radar_review_candidate` is called with `decision: approve` and valid score dimensions
+**Then** the candidate moves to `publish_ready`
+**And** a deterministic score is computed
+**And** a score row is stored as approved
+**And** a review row is stored
+**And** an audit event is written
 **And** the response includes the computed score and next action.
 
 **Done means:** the core editorial approval loop works.
 
 #### AT-1.7 Review Rejects Or Requests More Info
 
-**Given** a candidate needing review  
-**When** `radar_review_candidate` is called with `reject` or `needs_more_info`  
-**Then** the status changes accordingly  
-**And** reviewer note is required  
-**And** no approved score is created unless explicitly valid and allowed  
+**Given** a candidate needing review
+**When** `radar_review_candidate` is called with `reject` or `needs_more_info`
+**Then** the status changes accordingly
+**And** reviewer note is required
+**And** no approved score is created unless explicitly valid and allowed
 **And** an audit event is written.
 
 **Done means:** review is not only a happy-path approval button.
 
 #### AT-1.8 Invalid Status Transitions Are Blocked
 
-**Given** a quarantined or rejected candidate  
-**When** an agent attempts to mark it `publish_ready` directly  
-**Then** the tool returns `ok: false`  
-**And** the error code is stable  
-**And** no candidate status changes  
+**Given** a quarantined or rejected candidate
+**When** an agent attempts to mark it `publish_ready` directly
+**Then** the tool returns `ok: false`
+**And** the error code is stable
+**And** no candidate status changes
 **And** the failed attempt is audited.
 
 **Done means:** MCP cannot bypass workflow gates.
 
 #### AT-1.9 Issue Draft Uses Only Approved Candidates
 
-**Given** a mix of approved, unapproved, rejected, and quarantined candidates  
-**When** `radar_create_issue_draft` is called  
-**Then** only `publish_ready` candidates with approved scores and evidence can be included  
-**And** candidates without evidence are rejected from the draft with warnings  
+**Given** a mix of approved, unapproved, rejected, and quarantined candidates
+**When** `radar_create_issue_draft` is called
+**Then** only `publish_ready` candidates with approved scores and evidence can be included
+**And** candidates without evidence are rejected from the draft with warnings
 **And** free-tier output suppresses restricted fields.
 
 **Done means:** public draft creation respects review and compliance gates.
 
 #### AT-1.10 Export Writes Local Markdown Only
 
-**Given** a valid issue draft  
-**When** `radar_export_issue` is called with `format: markdown`  
-**Then** a Markdown file is written under `data/exports/` or a configured temp export path  
-**And** no beehiiv API, email, alert, or external publish operation is called  
-**And** export path and timestamp are persisted  
+**Given** a valid issue draft
+**When** `radar_export_issue` is called with `format: markdown`
+**Then** a Markdown file is written under `data/exports/` or a configured temp export path
+**And** no beehiiv API, email, alert, or external publish operation is called
+**And** export path and timestamp are persisted
 **And** an audit event is written.
 
 **Done means:** the product can create useful output without external publishing risk.
 
 #### AT-1.11 Audit Trail Explains Candidate History
 
-**Given** an imported, reviewed, and exported candidate  
-**When** `radar_audit_trail` is called for that candidate  
+**Given** an imported, reviewed, and exported candidate
+**When** `radar_audit_trail` is called for that candidate
 **Then** it shows:
 
 - import/source-run event
@@ -385,11 +385,11 @@ Fixtures can be built from sanitized legacy records or handcrafted samples.
 
 #### AT-1.12 Health Reports Real Work Remaining
 
-**Given** a Phase 1 database with imported candidates  
-**When** `radar_health` is called  
-**Then** it reports counts by status  
-**And** stale-source state  
-**And** last import/source run  
+**Given** a Phase 1 database with imported candidates
+**When** `radar_health` is called
+**Then** it reports counts by status
+**And** stale-source state
+**And** last import/source run
 **And** recommended next action, such as reviewing candidates or exporting an issue.
 
 **Done means:** OpenClaw can operate the queue without guessing.

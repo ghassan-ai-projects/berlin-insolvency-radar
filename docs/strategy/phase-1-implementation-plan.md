@@ -1,8 +1,8 @@
 # Phase 1 Implementation Plan: Legacy Import, Review, And Draft-Ready Core
 
-**Date:** 2026-06-15  
-**Status:** Approved for execution after Phase 0  
-**Depends on:** Completed technical Phase 0 foundation  
+**Date:** 2026-06-15
+**Status:** Approved for execution after Phase 0
+**Depends on:** Completed technical Phase 0 foundation
 **Primary gate:** `docs/strategy/phase-acceptance-tests.md`, AT-1.0 through AT-1.12
 
 ---
@@ -589,4 +589,3 @@ Phase 1 is not done if:
 10. Add Phase 1 acceptance tests and manual acceptance review.
 
 This order keeps safety and test fixtures ahead of feature work, which is exactly where this project wants its center of gravity.
-

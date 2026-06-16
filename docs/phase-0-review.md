@@ -1,7 +1,7 @@
 # Phase 0 Review
 
-**Date:** 2026-06-15  
-**Reviewer:** Codex  
+**Date:** 2026-06-15
+**Reviewer:** Codex
 **Scope:** Phase 0 foundation, quality, tests, safety, and completeness against `docs/strategy/phase-acceptance-tests.md` and `docs/strategy/phase-0-implementation-plan.md`.
 
 ## Verdict

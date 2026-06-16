@@ -6,7 +6,7 @@ sources:
     trust_level: "C"
     mode: read_only
     path: "/Users/ghassan/my-projects/insolvency-scout/data/insolvency_scout.duckdb"
-    
+
   official_insolvency_berlin:
     kind: official_jsf
     name: "Official Insolvency Portal Berlin"

@@ -1,8 +1,8 @@
 # Phase 1 Implementation Review
 
-**Date:** 2026-06-15  
-**Reviewer:** Codex  
-**Scope:** Phase 1 legacy import, candidate review, scoring, issue draft/export, MCP contracts, safety, auditability, and test quality.  
+**Date:** 2026-06-15
+**Reviewer:** Codex
+**Scope:** Phase 1 legacy import, candidate review, scoring, issue draft/export, MCP contracts, safety, auditability, and test quality.
 **Reviewed against:** `docs/strategy/phase-1-implementation-plan.md` and `docs/strategy/phase-acceptance-tests.md`.
 
 ---
