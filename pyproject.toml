@@ -38,18 +38,40 @@ line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "N", "UP", "RUF"]
+select = ["E", "F", "B", "I", "N", "UP", "RUF", "S", "SIM", "T20", "PT"]
 ignore = [
     "E501", # Ruff will handle line length via line-length setting
     "B905", # zip() without strict= is fine for internal duckdb rows
     "RUF005", # iterable concatenation is fine here
     "UP046", # Generic[T] subclass is standard pydantic pattern
+    "S101", # assert is fine in tests
+    "S104", # binding to all interfaces is fine in local dev
+    "S301", # pickle is not used
+    "S314", # XML from official government portal, not user-controlled
+    "S608", # repository uses parameterized ? placeholders; false positives on IN clauses
+    "PT011", # pytest.raises without match= is fine
+    "PT018", # assertions in fixtures are deliberate
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"src/biradar/cli/**/*.py" = ["T201"]  # CLI uses print() for output
+"tests/fixtures/**/*.py" = ["T201"]   # Fixture build scripts use print()
+"tests/**/*.py" = ["S101", "S608"]    # assert in tests; table names in test queries
 
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src/biradar"]
+
+# Third-party library type stub limitations produce false positives.
+# LangChain's ChatOpenAI params, structured_output returns, and response.content
+# types; BeautifulSoup's _AttributeValue; DuckDB's fetchone() return; and
+# LangGraph's RunnableConfig are all inadequately typed in upstream stubs.
+reportCallIssue = false
+reportAttributeAccessIssue = false
+reportReturnType = false
+reportArgumentType = false
+reportOptionalSubscript = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

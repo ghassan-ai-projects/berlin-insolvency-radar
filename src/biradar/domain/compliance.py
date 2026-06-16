@@ -42,10 +42,7 @@ def has_consumer_indicators(raw_text: str | None, company_name: str | None) -> b
     if company_name:
         text_to_check += " " + company_name.lower()
 
-    for indicator in CONSUMER_INDICATORS:
-        if indicator in text_to_check:
-            return True
-    return False
+    return any(indicator in text_to_check for indicator in CONSUMER_INDICATORS)
 
 
 def evaluate_compliance(
