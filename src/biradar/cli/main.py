@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,18 @@ from biradar.services.pipeline import run_pipeline, run_pipeline_check
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "radar.duckdb"
+
+# Load .env if present
+_env_path = PROJECT_ROOT / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _key, _val = _line.split("=", 1)
+        _key = _key.strip()
+        _val = _val.strip().strip("\"'").strip()
+        os.environ.setdefault(_key, _val)
 
 
 def build_parser() -> argparse.ArgumentParser:

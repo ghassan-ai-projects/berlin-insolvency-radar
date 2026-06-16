@@ -369,18 +369,24 @@ class OfficialPortalAdapter:
         }
 
     def _extract_records_from_table(self, table: Any) -> list[dict[str, Any]]:
-        """Extract raw record dictionaries from an HTML table."""
+        """Extract raw record dictionaries from an HTML table.
+
+        Portal table columns (tbl_ergebnis):
+        [0] publication_date  [1] case_number  [2] court
+        [3] company_name      [4] seat         [5] register_number
+        [6] detail form button (empty text)
+        """
         records: list[dict[str, Any]] = []
         for row in table.find_all("tr"):
             cells = row.find_all("td")
-            if len(cells) < 4:
+            if len(cells) < 6:
                 continue
-            company_name = cells[0].get_text(strip=True)
-            court = cells[1].get_text(strip=True)
-            case_number = cells[2].get_text(strip=True)
-            pub_date_str = cells[3].get_text(strip=True)
+            pub_date_str = cells[0].get_text(strip=True)
             normalized_pub_date = _normalize_publication_date(pub_date_str)
-            stage = cells[4].get_text(strip=True) if len(cells) > 4 else ""
+            case_number = cells[1].get_text(strip=True)
+            court = cells[2].get_text(strip=True)
+            company_name = cells[3].get_text(strip=True)
+            register_number = cells[5].get_text(strip=True) if len(cells) > 5 else ""
             legal_form = _infer_legal_form(company_name)
             records.append(
                 {
@@ -389,8 +395,8 @@ class OfficialPortalAdapter:
                     "legal_form": legal_form,
                     "court": court,
                     "case_number": case_number,
+                    "register_number": register_number,
                     "publication_date": normalized_pub_date,
-                    "proceeding_stage": stage,
                     "raw_text": row.get_text(strip=True, separator=" | "),
                     "source_url": PORTAL_URL,
                 }
@@ -400,13 +406,15 @@ class OfficialPortalAdapter:
     def _parse_html_results(self, html: str) -> list[dict[str, Any]]:
         """Parse a full HTML search results page into raw record dictionaries."""
         soup = BeautifulSoup(html, "html.parser")
-        candidate_tables = soup.find_all("table")
-        records: list[dict[str, Any]] = []
-        for table in candidate_tables:
-            table_records = self._extract_records_from_table(table)
-            if table_records:
-                records.extend(table_records)
-        return records
+        result_table = soup.find("table", id="tbl_ergebnis")
+        if result_table:
+            return self._extract_records_from_table(result_table)
+        # Fallback: try any table with enough columns
+        for table in soup.find_all("table"):
+            records = self._extract_records_from_table(table)
+            if records:
+                return records
+        return []
 
     def _parse_response(self, html_or_xml: str) -> list[dict[str, Any]]:
         """Parse the portal response into raw record dictionaries."""

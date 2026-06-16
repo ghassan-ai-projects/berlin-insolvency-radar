@@ -17,11 +17,12 @@ def test_parse_response_extracts_jsf_table_data():
                 <table id="form:resultsTable">
                     <tbody>
                         <tr>
-                            <td>Test Berlin GmbH</td>
-                            <td>Amtsgericht Charlottenburg</td>
-                            <td>36e IN 123/26</td>
                             <td>15.06.2026</td>
-                            <td>Eröffnungsbeschluss</td>
+                            <td>36e IN 123/26</td>
+                            <td>Amtsgericht Charlottenburg</td>
+                            <td>Test Berlin GmbH</td>
+                            <td>Berlin</td>
+                            <td>Berlin, HRB 123456</td>
                         </tr>
                     </tbody>
                 </table>
@@ -41,7 +42,7 @@ def test_parse_response_extracts_jsf_table_data():
     assert record["court"] == "Amtsgericht Charlottenburg"
     assert record["case_number"] == "36e IN 123/26"
     assert record["publication_date"] == "2026-06-15"
-    assert record["proceeding_stage"] == "Eröffnungsbeschluss"
+    assert record["register_number"] == "Berlin, HRB 123456"
     assert "Test Berlin GmbH" in record["raw_text"]
 
 
@@ -73,7 +74,7 @@ def test_parse_response_handles_leading_comments_before_xml_declaration():
   <changes>
     <update id="form:results">
       <![CDATA[
-      <table><tbody><tr><td>Alpha UG</td><td>Berlin</td><td>1 IN 1/26</td><td>16.06.2026</td><td>Beschluss</td></tr></tbody></table>
+      <table><tbody><tr><td>16.06.2026</td><td>1 IN 1/26</td><td>Berlin</td><td>Alpha UG</td><td>Berlin</td><td></td></tr></tbody></table>
       ]]>
     </update>
   </changes>
