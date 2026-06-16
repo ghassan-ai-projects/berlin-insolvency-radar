@@ -1,0 +1,38 @@
+# Pre-commit hooks for this repository: ruff (format + check) plus standard
+# file-hygiene checks. Heavier validation (typing) runs in CI rather than
+# as commit-time hooks.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: uv run ruff format --force-exclude
+        types: [python]
+
+      - id: ruff-check
+        name: ruff check
+        language: system
+        entry: uv run ruff check --fix --force-exclude
+        types: [python]
+
+  # File hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+      - id: end-of-file-fixer
+        name: ensure files end with newline
+      - id: check-yaml
+        name: check yaml syntax
+      - id: check-merge-conflict
+        name: check for merge conflicts
+      - id: check-added-large-files
+        name: prevent large files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+        name: check for case conflicts
+      - id: mixed-line-ending
+        name: check line endings
+        args: ['--fix=lf']

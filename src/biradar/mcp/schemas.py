@@ -28,8 +28,6 @@ __all__ = [
 class HealthInput(BaseModel):
     """Input for radar_health."""
 
-    pass
-
 
 class ListCandidatesInput(BaseModel):
     statuses: (
