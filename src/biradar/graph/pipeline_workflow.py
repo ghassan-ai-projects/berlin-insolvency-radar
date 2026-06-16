@@ -58,9 +58,11 @@ def _build_enrichment_claims(result: Any) -> list[dict[str, Any]]:
 def _build_score_input(
     candidate: dict[str, Any],
     extraction_data: dict[str, Any],
-    enrichment_data: dict[str, Any],
 ) -> ScoreInput:
-    """Build deterministic score dimensions from available evidence."""
+    """Build deterministic score dimensions from extraction evidence only.
+
+    Enrichment data is collected later for export-quality candidates only.
+    """
     legal_form = (
         candidate.get("legal_form") or extraction_data.get("legal_form") or ""
     ).upper()
@@ -69,27 +71,16 @@ def _build_score_input(
         or extraction_data.get("proceeding_stage")
         or ""
     ).lower()
-    enrichment_payload = enrichment_data.get("data", {})
-    has_registry = bool(enrichment_payload.get("registry_number"))
-    has_website = bool(enrichment_payload.get("website_url"))
-    has_github = bool(enrichment_payload.get("github_org"))
-    has_funding = bool(enrichment_payload.get("funding_info"))
     evidence_count = len(extraction_data.get("evidence_snippets", {}))
 
     company_value = 2
     if legal_form in {"GMBH", "AG", "SE", "GMBH & CO. KG"}:
         company_value += 1
-    if has_registry:
-        company_value += 1
-    if has_funding:
-        company_value += 1
 
-    asset_quality = 2 + int(has_website) + int(has_github)
-    sector_attractiveness = (
-        2 + int(has_github) + int(bool(enrichment_payload.get("tech_stack")))
-    )
+    asset_quality = 2
+    sector_attractiveness = 2
     speed_of_action = 2 + int("er" in stage) + int(evidence_count >= 2)
-    legal_risk = 3 - int(has_registry) - int(evidence_count >= 2)
+    legal_risk = 3 - int(evidence_count >= 2)
 
     def clamp(value: int) -> int:
         return max(1, min(5, value))
@@ -101,12 +92,8 @@ def _build_score_input(
         speed_of_action=clamp(speed_of_action),
         legal_risk=clamp(legal_risk),
         rationale={
-            "method": "deterministic_heuristics",
+            "method": "deterministic_heuristics_extraction_only",
             "evidence_count": str(evidence_count),
-            "has_registry": str(has_registry),
-            "has_website": str(has_website),
-            "has_github": str(has_github),
-            "has_funding": str(has_funding),
         },
     )
 
@@ -120,11 +107,27 @@ def ingest_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
 def normalize_and_compliance_node(
     state: PipelineWorkflowState,
 ) -> PipelineWorkflowState:
-    """Normalize records and apply deterministic corporate-only filtering."""
+    """Normalize records and apply deterministic corporate-only filtering.
+
+    Records whose raw_record_id already has a linked candidate in the DB
+    are skipped — avoids re-processing on pipeline re-runs.
+    """
     logger.info("Executing normalize and compliance node")
     valid_candidates = []
+    already_processed = set(state.get("already_processed_raw_ids", []))
 
     for record in state["raw_records"]:
+        raw_id = record.get("raw_record_id")
+        if raw_id and raw_id in already_processed:
+            valid_candidates.append(
+                {
+                    **record,
+                    "status": "quarantined",
+                    "quarantine_reason": "already_processed",
+                }
+            )
+            continue
+
         is_allowed, reason = evaluate_compliance(
             legal_form=record.get("legal_form"),
             raw_text=record.get("raw_text", ""),
@@ -190,7 +193,7 @@ def enrichment_node(
     state: PipelineWorkflowState,
     enricher: EnricherFn = enrich_candidate,
 ) -> PipelineWorkflowState:
-    """Enrichment using free/public sources."""
+    """Enrichment for candidates that passed scoring. Low-score candidates skip this."""
     logger.info("Executing enrichment node")
     enrichment_results: dict[str, dict[str, Any]] = {}
 
@@ -247,12 +250,15 @@ def enrichment_node(
     return {
         **state,
         "enrichment_results": enrichment_results,
-        "current_step": "scoring",
+        "current_step": "risk_review",
     }
 
 
 def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
-    """Deterministic scoring from extracted and enriched evidence."""
+    """Deterministic scoring from extraction evidence only.
+
+    Enrichment hasn't run yet — scores are based on what the LLM extracted.
+    """
     logger.info("Executing scoring node")
     settings = get_settings()
     config = load_config(settings.project_root / "config")
@@ -264,12 +270,9 @@ def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
 
         candidate_id = candidate.get("candidate_id", "unknown")
         extraction_data = state.get("extraction_results", {}).get(candidate_id, {})
-        enrichment_data = state.get("enrichment_results", {}).get(candidate_id, {})
 
         try:
-            proposed_scores = _build_score_input(
-                candidate, extraction_data, enrichment_data
-            )
+            proposed_scores = _build_score_input(candidate, extraction_data)
             result = compute_score(
                 proposed_scores, config.scoring.weights, config.scoring.thresholds
             )
@@ -297,7 +300,7 @@ def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
             candidate["status"] = "quarantined"
             candidate["quarantine_reason"] = "scoring_failed"
 
-    return {**state, "scores": scores, "current_step": "risk_review"}
+    return {**state, "scores": scores, "current_step": "enrichment"}
 
 
 def risk_review_node(
@@ -549,9 +552,9 @@ def build_pipeline_workflow(
     workflow.add_edge("ingest", "normalize_and_compliance")
     workflow.add_edge("normalize_and_compliance", "dedupe")
     workflow.add_edge("dedupe", "extraction")
-    workflow.add_edge("extraction", "enrichment")
-    workflow.add_edge("enrichment", "scoring")
-    workflow.add_edge("scoring", "risk_review")
+    workflow.add_edge("extraction", "scoring")
+    workflow.add_edge("scoring", "enrichment")
+    workflow.add_edge("enrichment", "risk_review")
 
     def review_router(
         state: PipelineWorkflowState,

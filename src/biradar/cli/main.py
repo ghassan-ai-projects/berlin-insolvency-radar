@@ -6,11 +6,18 @@ import os
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+# Load .env before any biradar imports that read os.environ
+_dotenv_path = PROJECT_ROOT / ".env"
+if _dotenv_path.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_dotenv_path)
+
 from biradar.config.settings import load_config
 from biradar.mcp.server import create_mcp_server, list_radar_tools
 from biradar.services.pipeline import run_pipeline, run_pipeline_check
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "radar.duckdb"
 

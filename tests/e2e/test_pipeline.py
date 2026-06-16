@@ -128,4 +128,4 @@ def test_pipeline_check_command_path_passes():
     assert result["counts"]["raw_records"] == 1
     assert result["counts"]["candidates"] == 1
     assert result["counts"]["publish_ready"] == 1
-    assert result["counts"]["issues"] == 2
+    assert result["counts"]["issues"] == 1  # second run skips already-processed records

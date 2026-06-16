@@ -122,6 +122,10 @@ def _persist_results(
 
     score_ids: dict[str, str] = {}
     for candidate in final_state.get("candidates", []):
+        # Already-processed records have existing linked candidates — skip persistence.
+        if candidate.get("quarantine_reason") == "already_processed":
+            continue
+
         candidate_id = candidate.get("candidate_id") or f"cand_{uuid.uuid4().hex}"
         candidate["candidate_id"] = candidate_id
         candidate_repo.upsert_candidate(
@@ -360,9 +364,25 @@ def run_pipeline(
             enricher=enricher,
         ).compile(checkpointer=checkpoint_mgr.saver_instance)
 
+        # Collect raw_record_ids that already have linked candidates in the DB.
+        # These records skip extraction + enrichment on re-runs.
+        already_processed_ids: list[str] = []
+        if not dry_run and raw_records:
+            raw_ids = [r.get("raw_record_id") for r in raw_records if r.get("raw_record_id")]
+            if raw_ids:
+                placeholders = ",".join("?" * len(raw_ids))
+                already_processed_ids = [
+                    row[0]
+                    for row in db.conn.execute(
+                        f"SELECT DISTINCT raw_record_id FROM candidate_sources WHERE raw_record_id IN ({placeholders})",
+                        raw_ids,
+                    ).fetchall()
+                ]
+
         initial_state = {
             "source_run_id": source_run_id,
             "raw_records": raw_records,
+            "already_processed_raw_ids": already_processed_ids,
             "candidates": [],
             "extraction_results": {},
             "enrichment_results": {},

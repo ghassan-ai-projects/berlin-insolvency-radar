@@ -57,7 +57,6 @@ def review_candidate_risk(
             openai_api_base=api_base,
             model=model_name,
             temperature=0.0,
-            model_kwargs={"response_format": {"type": "json_object"}},
         )
 
         review_context = (

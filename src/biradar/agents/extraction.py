@@ -46,7 +46,6 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
             openai_api_base=api_base,
             model=model_name,
             temperature=0.0,
-            model_kwargs={"response_format": {"type": "json_object"}},
         )
 
         base_prompt = load_prompt("extraction")

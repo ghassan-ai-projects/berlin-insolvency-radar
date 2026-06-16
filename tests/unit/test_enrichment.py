@@ -3,12 +3,15 @@
 import socket
 from unittest.mock import patch
 
+import pytest
+
 from biradar.sources.enrichment import (
     EnrichmentResult,
     _aggregate_result,
     _build_company_slug,
     _dns_resolves,
     _get_enrichment_config,
+    _reset_disabled_sources,
     enrich_candidate,
 )
 
@@ -36,6 +39,10 @@ class TestEnrichCandidateModes:
 
 
 class TestEnrichCandidateLiveMode:
+    @pytest.fixture(autouse=True)
+    def _reset_sources(self):
+        _reset_disabled_sources()
+
     def test_all_sources_succeed(self, monkeypatch):
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
@@ -46,7 +53,6 @@ class TestEnrichCandidateLiveMode:
             patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
             patch("biradar.sources.enrichment.lookup_github") as mock_gh,
             patch("biradar.sources.enrichment.lookup_website") as mock_web,
-            patch("biradar.sources.enrichment.lookup_handelsregister") as mock_hr,
         ):
             mock_b.return_value = {
                 "annual_reports": ["Jahresabschluss 2025"],
@@ -71,27 +77,16 @@ class TestEnrichCandidateLiveMode:
                 "status_code": 200,
                 "source": "website",
             }
-            mock_hr.return_value = {
-                "legal_form": "GmbH",
-                "registry_court": "Amtsgericht Berlin",
-                "registry_number": "HRB 12345",
-                "status": "active",
-                "source": "handelsregister",
-            }
 
             result = enrich_candidate("Test GmbH")
 
         assert result.enriched is True
-        assert len(result.sources) == 4
-        assert result.sector == "Legal form: GmbH"
-        assert result.legal_form == "GmbH"
-        assert result.registry_court == "Amtsgericht Berlin"
-        assert result.registry_number == "HRB 12345"
-        assert result.company_status == "active"
+        assert len(result.sources) == 3
         assert result.tech_stack == "React, Node.js"
         assert result.website_url == "https://test-gmbh.de"
+        assert result.website_status == 200
         assert result.github_org == "test-gmbh"
-        assert "Revenue: 1.2 Mio. EUR" in (result.funding_info or "")
+        assert result.funding_info == "Revenue: 1.2 Mio. EUR"
         assert len(result.errors) == 0
 
     def test_source_failure_isolation(self, monkeypatch):
@@ -104,7 +99,6 @@ class TestEnrichCandidateLiveMode:
             patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
             patch("biradar.sources.enrichment.lookup_github") as mock_gh,
             patch("biradar.sources.enrichment.lookup_website") as mock_web,
-            patch("biradar.sources.enrichment.lookup_handelsregister") as mock_hr,
         ):
             mock_b.side_effect = RuntimeError("Connection error")
             mock_gh.return_value = None
@@ -116,19 +110,12 @@ class TestEnrichCandidateLiveMode:
                 "status_code": 200,
                 "source": "website",
             }
-            mock_hr.return_value = {
-                "legal_form": "AG",
-                "registry_court": "Amtsgericht Muenchen",
-                "registry_number": "HRB 99999",
-                "status": "active",
-                "source": "handelsregister",
-            }
 
             result = enrich_candidate("Example AG")
 
         assert result.enriched is True
-        assert len(result.sources) == 2
-        assert result.legal_form == "AG"
+        assert len(result.sources) == 1
+        assert result.website_url == "https://example.de"
         assert len(result.errors) == 2
 
     def test_no_sources_return_data(self, monkeypatch):
@@ -143,15 +130,12 @@ class TestEnrichCandidateLiveMode:
             ),
             patch("biradar.sources.enrichment.lookup_github", return_value=None),
             patch("biradar.sources.enrichment.lookup_website", return_value=None),
-            patch(
-                "biradar.sources.enrichment.lookup_handelsregister", return_value=None
-            ),
         ):
             result = enrich_candidate("Unknown GmbH")
 
         assert result.enriched is False
         assert len(result.sources) == 0
-        assert len(result.errors) == 4
+        assert len(result.errors) == 3
 
 
 class TestAggregateResult:

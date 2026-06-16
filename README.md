@@ -30,23 +30,73 @@ cp .env.example .env
 # Edit .env with your DEEPSEEK_API_KEY
 ```
 
-Verify:
+### Verify (code quality, no network)
 
 ```bash
-make check
+make check          # format, lint, typecheck, unit + acceptance + e2e tests
 ```
 
-Dry-run the pipeline:
+No `.env` or API key needed — tests use fixtures and stubs exclusively.
+
+---
+
+## Production Mode
+
+A production run scrapes the **live** official Berlin insolvency portal
+(`neu.insolvenzbekanntmachungen.de`), calls the **live** DeepSeek API for fact
+extraction and risk review, hits **live** enrichment sources (Bundesanzeiger,
+GitHub, company websites), and persists everything to `data/radar.duckdb`.
+
+### Prerequisites
 
 ```bash
+cp .env.example .env
+# Set DEEPSEEK_API_KEY=sk-... in .env
+# Verify config/sources.yaml has official_insolvency_berlin.enabled: true
+uv sync --extra dev
+```
+
+### Run the pipeline
+
+```bash
+# Scrape the last 7 days, extract, enrich, score, review, export
+uv run biradar pipeline-run \
+  --start-date 2026-06-09 \
+  --end-date 2026-06-16
+```
+
+This connects to the **live portal** and the **live DeepSeek API**. It produces:
+
+- `data/radar.duckdb` — persisted state with audit trail
+- `data/exports/issue_draft_*.md` — ranked Markdown newsletter
+- `data/exports/issue_data_*.json` — structured JSON package
+- `data/checkpoints.sqlite` — LangGraph checkpoint for resume
+
+### Run the MCP server
+
+```bash
+uv run biradar serve     # stdio MCP server with full tool catalog
+```
+
+---
+
+## Development & CI (fixture-backed, no network)
+
+These commands use **fixtures and stubs** — no `.env`, no API key, no network:
+
+```bash
+# Deterministic pipeline validation (fixture HTML + stub extractor/reviewer/enricher)
 uv run biradar pipeline-check
+
+# Individual test tiers
+make test               # unit tests
+make test-acceptance    # acceptance tests
+make test-e2e           # e2e tests (non-live only)
 ```
 
-Start the MCP server:
-
-```bash
-uv run biradar serve
-```
+`pipeline-check` runs the full workflow against a temporary DuckDB using fixture
+data and deterministic stubs, then verifies database counts. It never touches
+the live portal or any external API.
 
 ## Documentation
 

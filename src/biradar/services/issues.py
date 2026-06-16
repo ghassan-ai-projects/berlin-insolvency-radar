@@ -166,7 +166,7 @@ class IssueService:
                 md_lines.append(f"- **Court:** {cand['court'] or 'N/A'}")
                 md_lines.append(f"- **Case Number:** {cand['case_number'] or 'N/A'}")
                 md_lines.append(
-                    f"- **Opportunity Score:** {score['computed_score']} ({score['category'].replace('_', ' ').title()})"
+                    f"- **Opportunity Score:** {score['computed_score']:.2f} ({score['category'].replace('_', ' ').title()})"
                 )
                 md_lines.append(
                     f"- **Source:** {item['evidence'][0]['source_url'] if item['evidence'] else 'N/A'}"

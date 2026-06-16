@@ -40,6 +40,10 @@ USER_AGENT: str = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 MAX_RETRIES: int = 3
+# Sources that returned terminal errors (400, 403, Cloudflare) —
+# skipped for the remainder of the pipeline run to avoid wasting time.
+_disabled_sources: set[str] = set()
+
 WEBSITE_TLDS: list[str] = [".de", ".com", ".eu"]
 
 TECH_SIGNALS: list[tuple[str, re.Pattern]] = [
@@ -93,6 +97,11 @@ class EnrichmentResult(BaseModel):
 _http_client: httpx.Client | None = None
 
 
+def _reset_disabled_sources() -> None:
+    """Clear the disabled-sources set (for test resets)."""
+    _disabled_sources.clear()
+
+
 def _get_client() -> httpx.Client:
     """Return a shared httpx Client (lazy-init)."""
     global _http_client
@@ -116,13 +125,22 @@ def _close_client() -> None:
 def _http_get(url: str) -> httpx.Response | None:
     """GET with retries. Returns response or None on final failure.
 
-    SSL errors and connection errors are skipped immediately without retry.
+    SSL errors, connection errors, and anti-bot blocks (403) are skipped
+    immediately without retry.
     """
     last_error: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             client = _get_client()
             resp = client.get(url)
+            if resp.status_code == 403:
+                text_lower = (resp.text or "")[:2000].lower()
+                if any(
+                    marker in text_lower
+                    for marker in ("cloudflare", "cf-challenge", "captcha", "access denied")
+                ):
+                    logger.debug("Anti-bot block fetching %s (skipping)", url)
+                    return None
             resp.raise_for_status()
             return resp
         except httpx.TimeoutException as exc:
@@ -131,13 +149,16 @@ def _http_get(url: str) -> httpx.Response | None:
             )
             last_error = exc
         except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
             logger.debug(
                 "HTTP %s fetching %s (attempt %d/%d)",
-                exc.response.status_code,
+                status,
                 url,
                 attempt,
                 MAX_RETRIES,
             )
+            if status in (403, 400):
+                break
             last_error = exc
         except ssl.SSLError as exc:
             logger.debug("SSL error fetching %s (skipping): %s", url, exc)
@@ -323,7 +344,11 @@ def _build_company_slug(company_name: str) -> str:
 
 
 def lookup_website(company_name: str) -> dict[str, Any] | None:
-    """Try to locate and scrape the company website."""
+    """Try to locate and scrape the company website.
+
+    Uses a short timeout (5s) and single attempt per URL — DNS pre-filters
+    dead domains, so retries add overhead without benefit.
+    """
     slug = _build_company_slug(company_name)
 
     candidates = [f"https://{slug}{tld}" for tld in WEBSITE_TLDS]
@@ -331,9 +356,27 @@ def lookup_website(company_name: str) -> dict[str, Any] | None:
         url for url in candidates if _dns_resolves(urlparse(url).hostname or "")
     ]
 
+    client = _get_client()
+    website_timeout = httpx.Timeout(3.0)
+
     for url in candidates:
-        resp = _http_get(url)
-        if resp is None:
+        try:
+            resp = client.get(url, timeout=website_timeout)
+            if resp.status_code == 403:
+                text_lower = (resp.text or "")[:2000].lower()
+                if any(
+                    marker in text_lower
+                    for marker in ("cloudflare", "cf-challenge", "captcha", "access denied")
+                ):
+                    logger.debug("Anti-bot block on %s (skipping)", url)
+                    continue
+            resp.raise_for_status()
+        except httpx.TimeoutException:
+            logger.debug("Website timeout for %s (skipping)", url)
+            continue
+        except (httpx.HTTPStatusError, httpx.ConnectError, ssl.SSLError, OSError):
+            continue
+        except httpx.RequestError:
             continue
 
         try:
@@ -399,6 +442,13 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
         resp = client.get(HANDELSREGISTER_SEARCH_URL, params=params, headers=headers)
+        if resp.status_code in (400, 403):
+            _disabled_sources.add("handelsregister")
+            logger.warning(
+                "Handelsregister returned %d — disabling for remainder of run",
+                resp.status_code,
+            )
+            return None
         resp.raise_for_status()
         html = resp.text
 
@@ -552,10 +602,13 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
         ("bundesanzeiger", lookup_bundesanzeiger),
         ("github", lookup_github),
         ("website", lookup_website),
-        ("handelsregister", lookup_handelsregister),
     ]
 
     for idx, (source_name, lookup_fn) in enumerate(source_defs):
+        if source_name in _disabled_sources:
+            errors.append(f"{source_name}: skipped (disabled after terminal error)")
+            continue
+
         if idx > 0:
             time.sleep(enrichment_config.delay_between_sources)
 

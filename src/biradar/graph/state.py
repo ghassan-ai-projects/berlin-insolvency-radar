@@ -48,6 +48,7 @@ class PipelineWorkflowState(TypedDict):
 
     source_run_id: str
     raw_records: list[dict]  # Transient for current run execution
+    already_processed_raw_ids: NotRequired[list[str]]  # Raw IDs with linked candidates
     candidates: list[dict]  # Transient for current run execution
     extraction_results: dict[str, dict]
     enrichment_results: dict[str, dict]
