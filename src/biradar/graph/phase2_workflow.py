@@ -3,7 +3,7 @@
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 
@@ -31,23 +31,27 @@ def normalize_and_compliance_node(state: Phase2WorkflowState) -> Phase2WorkflowS
     """Normalize records and apply deterministic corporate-only filter."""
     logger.info("Executing normalize and compliance node")
     valid_candidates = []
-    
+
     for record in state["raw_records"]:
         legal_form = record.get("legal_form")
         company_name = record.get("company_name")
         raw_text = record.get("raw_text", "")
-        
+
         is_allowed, reason = evaluate_compliance(
             legal_form=legal_form,
             raw_text=raw_text,
             company_name=company_name,
         )
-        
+
         if is_allowed:
-            valid_candidates.append({**record, "status": "deduped_candidate", "compliance_reason": None})
+            valid_candidates.append(
+                {**record, "status": "deduped_candidate", "compliance_reason": None}
+            )
         else:
-            valid_candidates.append({**record, "status": "quarantined", "compliance_reason": reason})
-            
+            valid_candidates.append(
+                {**record, "status": "quarantined", "compliance_reason": reason}
+            )
+
     state["candidates"] = valid_candidates
     state["current_step"] = "dedupe"
     return {**state}
@@ -66,19 +70,19 @@ def extraction_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     """LLM-based structured extraction of filing facts."""
     logger.info("Executing extraction node")
     extraction_results = {}
-    
+
     for candidate in state.get("candidates", []):
         if candidate.get("status") == "quarantined":
             continue
-            
+
         cid = candidate.get("candidate_id", str(uuid.uuid4()))
         raw_text = candidate.get("raw_text", "")
         source_url = candidate.get("source_url", "")
-        
+
         try:
             result = extract_filing_facts(raw_text, source_url)
             extraction_results[cid] = result.model_dump()
-            
+
             # If extraction flags it as likely consumer, quarantine it
             if result.is_consumer_likely:
                 candidate["status"] = "quarantined"
@@ -86,7 +90,7 @@ def extraction_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         except Exception as e:
             logger.error(f"Extraction failed for {cid}: {e}")
             state["errors"].append(f"Extraction failed for {cid}: {e}")
-            
+
     state["extraction_results"] = extraction_results
     return {**state, "current_step": "enrichment"}
 
@@ -99,7 +103,9 @@ def enrichment_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         if candidate["status"] == "quarantined":
             continue
         cid = candidate.get("candidate_id", "unknown")
-        if candidate.get("enrichment_http_status") == 403 or candidate.get("enrichment_blocked"):
+        if candidate.get("enrichment_http_status") == 403 or candidate.get(
+            "enrichment_blocked"
+        ):
             enrichment_results[cid] = {
                 "enriched": False,
                 "status": "blocked_by_anti_bot",
@@ -138,7 +144,7 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         if candidate["status"] == "quarantined":
             continue
         cid = candidate.get("candidate_id", "unknown")
-        
+
         # LLM proposes dimensions; here we simulate a valid proposal
         # In reality, this comes from the analyst/extraction agent
         proposed_scores = ScoreInput(
@@ -147,12 +153,14 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             sector_attractiveness=3,
             speed_of_action=3,
             legal_risk=2,
-            rationale={"note": "Simulated proposal"}
+            rationale={"note": "Simulated proposal"},
         )
-        
+
         # Deterministic validation and calculation
         try:
-            result = compute_score(proposed_scores, config.scoring.weights, config.scoring.thresholds)
+            result = compute_score(
+                proposed_scores, config.scoring.weights, config.scoring.thresholds
+            )
             score_payload = {
                 "company_value": proposed_scores.company_value,
                 "asset_quality": proposed_scores.asset_quality,
@@ -166,18 +174,18 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             }
             scores[cid] = score_payload
             candidate["score"] = score_payload
-            
+
             # Auto-quarantine if confidence/threshold is too low
             # Use getattr for safe access to Pydantic model attributes
             threshold = getattr(config.scoring.thresholds, "interesting", 2.0)
             if result.computed_score < threshold:
                 candidate["status"] = "quarantined"
                 candidate["quarantine_reason"] = "low_score"
-                
+
         except Exception as e:
             logger.error(f"Scoring failed for {cid}: {e}")
             scores[cid] = {"status": "failed", "error": str(e)}
-            
+
     state["scores"] = scores
     state["current_step"] = "risk_review"
     return {**state}
@@ -186,28 +194,30 @@ def scoring_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
 def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     """Risk review with max 2 retries before auto-quarantine."""
     logger.info("Executing risk review node")
-    
+
     if "retry_counts" not in state:
         state["retry_counts"] = {}
-        
+
     risk_reviews = state.get("risk_reviews", {})
     needs_retry = False
-    
+
     for candidate in state.get("candidates", []):
         if candidate.get("status") == "quarantined":
             continue
-            
+
         cid = candidate.get("candidate_id", "unknown")
         retries = state["retry_counts"].get(cid, 0)
-        
+
         # Gather context for the review
         draft_thesis = f"Opportunity in {candidate.get('proceeding_stage', 'insolvency')} for {candidate.get('company_name', 'Unknown')}."
         extraction_data = state.get("extraction_results", {}).get(cid, {})
         enrichment_data = state.get("enrichment_results", {}).get(cid, {})
         evidence_snippets = extraction_data.get("evidence_snippets", {})
         unsupported_claims = [
-            claim for claim in enrichment_data.get("claims", [])
-            if claim.get("classification") != "inference" and not claim.get("source_url")
+            claim
+            for claim in enrichment_data.get("claims", [])
+            if claim.get("classification") != "inference"
+            and not claim.get("source_url")
         ]
 
         if unsupported_claims:
@@ -219,7 +229,9 @@ def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
                 "reasons": ["unsupported_enrichment_claims"],
                 "unsupported_claims": unsupported_claims,
             }
-            state["warnings"].append(f"Quarantined {cid}: unsupported enrichment claims.")
+            state["warnings"].append(
+                f"Quarantined {cid}: unsupported enrichment claims."
+            )
             continue
         if not evidence_snippets:
             candidate["status"] = "quarantined"
@@ -232,11 +244,13 @@ def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             }
             state["warnings"].append(f"Quarantined {cid}: missing extraction evidence.")
             continue
-        
+
         try:
             # Call the LLM Risk Review Agent
-            result = review_candidate_risk(candidate, extraction_data, enrichment_data, draft_thesis)
-            
+            result = review_candidate_risk(
+                candidate, extraction_data, enrichment_data, draft_thesis
+            )
+
             if not result.passed_review:
                 if retries < 2:
                     state["retry_counts"][cid] = retries + 1
@@ -245,9 +259,15 @@ def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
                 else:
                     candidate["status"] = "quarantined"
                     candidate["quarantine_reason"] = "risk_review_failed_max_retries"
-                    risk_reviews[cid] = {"status": "quarantined", "retries": retries, "reasons": result.rejection_reasons}
-                    
-                    logger.warning(f"Candidate {cid} quarantined after {retries} risk review retries. Reasons: {result.rejection_reasons}")
+                    risk_reviews[cid] = {
+                        "status": "quarantined",
+                        "retries": retries,
+                        "reasons": result.rejection_reasons,
+                    }
+
+                    logger.warning(
+                        f"Candidate {cid} quarantined after {retries} risk review retries. Reasons: {result.rejection_reasons}"
+                    )
             else:
                 candidate["status"] = "publish_ready"
                 risk_reviews[cid] = {
@@ -262,12 +282,12 @@ def risk_review_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
             # Fail closed: quarantine on error
             candidate["status"] = "quarantined"
             candidate["quarantine_reason"] = "risk_review_system_error"
-            
+
     state["risk_reviews"] = risk_reviews
-    
+
     if needs_retry:
         return {**state, "current_step": "extraction"}
-        
+
     return {**state, "current_step": "draft_assembly"}
 
 
@@ -285,25 +305,38 @@ def draft_assembly_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         if not score_payload or score_payload.get("status") != "approved":
             candidate["status"] = "quarantined"
             candidate["quarantine_reason"] = "missing_approved_score"
-            state["warnings"].append(f"Excluded {cid} from export: missing approved score.")
+            state["warnings"].append(
+                f"Excluded {cid} from export: missing approved score."
+            )
             continue
         if not evidence_snippets:
             candidate["status"] = "quarantined"
             candidate["quarantine_reason"] = "missing_evidence"
             state["warnings"].append(f"Excluded {cid} from export: missing evidence.")
             continue
-        enrichment_claims = state.get("enrichment_results", {}).get(cid, {}).get("claims", [])
+        enrichment_claims = (
+            state.get("enrichment_results", {}).get(cid, {}).get("claims", [])
+        )
         factual_fields = {}
-        for field in ("company_name", "case_number", "publication_date", "proceeding_stage"):
+        for field in (
+            "company_name",
+            "case_number",
+            "publication_date",
+            "proceeding_stage",
+        ):
             value = extraction_payload.get(field)
             if value is None:
                 value = candidate.get(field)
             if value is not None:
                 factual_fields[field] = value
-        candidate["export_confidence"] = state.get("risk_reviews", {}).get(cid, {}).get("confidence")
+        candidate["export_confidence"] = (
+            state.get("risk_reviews", {}).get(cid, {}).get("confidence")
+        )
         candidate["evidence_summary"] = evidence_snippets
         candidate["enrichment_claims"] = enrichment_claims
-        candidate["unsupported_claims"] = state.get("risk_reviews", {}).get(cid, {}).get("unsupported_claims", [])
+        candidate["unsupported_claims"] = (
+            state.get("risk_reviews", {}).get(cid, {}).get("unsupported_claims", [])
+        )
         candidate["content_sections"] = {
             "facts": factual_fields,
             "inferences": enrichment_claims,
@@ -315,7 +348,13 @@ def draft_assembly_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
         export_ready_candidates.append(candidate)
 
     total_candidates = len(state["candidates"])
-    quarantined_candidates = len([candidate for candidate in state["candidates"] if candidate.get("status") == "quarantined"])
+    quarantined_candidates = len(
+        [
+            candidate
+            for candidate in state["candidates"]
+            if candidate.get("status") == "quarantined"
+        ]
+    )
     state["issue_draft"] = {
         "title": "Weekly Berlin Insolvency Radar",
         "source_run_id": state.get("source_run_id"),
@@ -340,23 +379,24 @@ def draft_assembly_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
 def export_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
     """Final export gate and persistence."""
     logger.info("Executing export node")
-    
+
     settings = get_settings()
     export_dir = settings.data_dir / "exports"
-    
+
     issue_data = state.get("issue_draft", {})
-    
+
     # Generate Markdown
     md_path = generate_markdown_draft(issue_data, export_dir)
-    
+
     # Generate JSON
     json_path = generate_json_package(issue_data, export_dir)
-    
+
     # Return new state dictionary to ensure proper LangGraph checkpointing
     return {
         **state,
         "export_path": md_path,
-        "warnings": state.get("warnings", []) + [f"Exported to {md_path} and {json_path}"],
+        "warnings": state.get("warnings", [])
+        + [f"Exported to {md_path} and {json_path}"],
         "current_step": "completed",
     }
 
@@ -364,7 +404,7 @@ def export_node(state: Phase2WorkflowState) -> Phase2WorkflowState:
 def build_phase2_workflow() -> StateGraph:
     """Builds the Phase 2 LangGraph workflow."""
     workflow = StateGraph(Phase2WorkflowState)
-    
+
     workflow.add_node("ingest", ingest_node)
     workflow.add_node("normalize_and_compliance", normalize_and_compliance_node)
     workflow.add_node("dedupe", dedupe_node)
@@ -374,7 +414,7 @@ def build_phase2_workflow() -> StateGraph:
     workflow.add_node("risk_review", risk_review_node)
     workflow.add_node("draft_assembly", draft_assembly_node)
     workflow.add_node("export", export_node)
-    
+
     workflow.add_edge(START, "ingest")
     workflow.add_edge("ingest", "normalize_and_compliance")
     workflow.add_edge("normalize_and_compliance", "dedupe")
@@ -382,21 +422,23 @@ def build_phase2_workflow() -> StateGraph:
     workflow.add_edge("extraction", "enrichment")
     workflow.add_edge("enrichment", "scoring")
     workflow.add_edge("scoring", "risk_review")
-    
+
     # Conditional edge for risk review retry
-    def review_router(state: Phase2WorkflowState) -> Literal["extraction", "draft_assembly"]:
+    def review_router(
+        state: Phase2WorkflowState,
+    ) -> Literal["extraction", "draft_assembly"]:
         # Fixed: Check 'current_step' which is what risk_review_node updates
         if state.get("current_step") == "extraction":
             return "extraction"
         return "draft_assembly"
-        
+
     workflow.add_conditional_edges(
         "risk_review",
         review_router,
-        {"extraction": "extraction", "draft_assembly": "draft_assembly"}
+        {"extraction": "extraction", "draft_assembly": "draft_assembly"},
     )
-    
+
     workflow.add_edge("draft_assembly", "export")
     workflow.add_edge("export", END)
-    
+
     return workflow

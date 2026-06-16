@@ -15,13 +15,20 @@ logger = logging.getLogger(__name__)
 def load_prompt(name: str) -> str:
     """Load an RCTCO prompt from the prompts directory."""
     settings = get_settings()
-    prompt_path = settings.project_root / "src" / "biradar" / "agents" / "prompts" / f"{name}.yaml"
+    prompt_path = (
+        settings.project_root
+        / "src"
+        / "biradar"
+        / "agents"
+        / "prompts"
+        / f"{name}.yaml"
+    )
 
     if not prompt_path.exists():
         logger.warning(f"Prompt file not found: {prompt_path}. Using fallback.")
         return f"You are a data extraction specialist. Extract {name}."
 
-    with open(prompt_path, "r", encoding="utf-8") as f:
+    with open(prompt_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     return (

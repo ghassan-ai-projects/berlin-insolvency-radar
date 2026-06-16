@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from biradar.config.settings import load_config
@@ -36,9 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
         "mcp-info", help="Validate MCP server construction and list tools."
     )
     subparsers.add_parser("serve-mcp", help="Run the MCP server over stdio.")
-    
+
     # Phase 2 CLI command
-    phase2_parser = subparsers.add_parser("phase2-run", help="Execute the Phase 2 agentic pipeline.")
+    phase2_parser = subparsers.add_parser(
+        "phase2-run", help="Execute the Phase 2 agentic pipeline."
+    )
     phase2_parser.add_argument(
         "--start-date",
         type=str,
@@ -66,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
         "phase2-check",
         help="Run fixture-backed Phase 2 verification against a temporary DuckDB.",
     )
-    
+
     return parser
 
 
@@ -81,7 +82,7 @@ def main() -> None:
             config = load_config(args.config_dir)
             print(f"Loaded config for biradar {config.scoring.version}")
             return
-            
+
         if command == "mcp-info":
             create_mcp_server(args.config_dir, args.db_path)
             tools = list_radar_tools()
@@ -89,26 +90,29 @@ def main() -> None:
             for tool in tools:
                 print(f"- {tool.name}")
             return
-            
+
         if command == "serve-mcp":
             asyncio.run(run_mcp_server(args.config_dir, args.db_path))
             return
-            
+
         if command == "phase2-run":
             from datetime import date
+
             start_date = date.fromisoformat(args.start_date)
             end_date = date.fromisoformat(args.end_date)
-            
-            print(f"Starting Phase 2 pipeline: {start_date} to {end_date} (dry_run={args.dry_run})")
+
+            print(
+                f"Starting Phase 2 pipeline: {start_date} to {end_date} (dry_run={args.dry_run})"
+            )
             result = run_phase2_pipeline(
                 start_date=start_date,
                 end_date=end_date,
                 dry_run=args.dry_run,
                 thread_id=args.thread_id,
             )
-            
+
             if result["status"] == "success":
-                print(f"✅ Phase 2 pipeline completed successfully.")
+                print("✅ Phase 2 pipeline completed successfully.")
                 if result.get("export_path"):
                     print(f"📦 Export path: {result['export_path']}")
                 if result.get("warnings"):
@@ -126,7 +130,7 @@ def main() -> None:
             print("Phase 2 check passed.")
             print(result)
             return
-            
+
     except Exception as e:
         print(f"Startup error: {e}", file=sys.stderr)
         sys.exit(1)

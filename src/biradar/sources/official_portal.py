@@ -11,14 +11,13 @@ import json
 import re
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
-from pydantic import BaseModel
 
 from biradar.observability.logging import get_logger
 from biradar.storage.repository import RawRecordRepository, SourceRunRepository
@@ -132,7 +131,7 @@ class OfficialPortalAdapter:
             raw_text = record.get("raw_text", "")
             content_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
             raw_record_id = f"raw_{uuid.uuid4().hex}"
-            retrieved_at = datetime.now(timezone.utc).isoformat()
+            retrieved_at = datetime.now(UTC).isoformat()
             if not dry_run:
                 persisted_raw_record_id = self.raw_record_repo.upsert_raw_record(
                     raw_record_id=raw_record_id,
@@ -175,7 +174,9 @@ class OfficialPortalAdapter:
         try:
             html_or_xml = Path(fixture_path).read_text(encoding="utf-8")
             records = self._parse_response(html_or_xml)
-            records_seen, records_imported = self._persist_records(source_run_id, records, dry_run)
+            records_seen, records_imported = self._persist_records(
+                source_run_id, records, dry_run
+            )
         except Exception as exc:
             records_seen = 0
             records_imported = 0
@@ -217,7 +218,7 @@ class OfficialPortalAdapter:
             Summary of the fetch operation.
         """
         source_run_id = str(uuid.uuid4())
-        started_at = datetime.now(timezone.utc).isoformat()
+        started_at = datetime.now(UTC).isoformat()
 
         log_payload = {
             "source_run_id": source_run_id,
@@ -250,7 +251,9 @@ class OfficialPortalAdapter:
         }
 
         try:
-            async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=30.0) as client:
+            async with httpx.AsyncClient(
+                headers=headers, follow_redirects=True, timeout=30.0
+            ) as client:
                 session = JSFSession(client)
                 await session.initialize()
 
@@ -282,24 +285,35 @@ class OfficialPortalAdapter:
                 for attempt in range(max_retries):
                     try:
                         response = await client.post(session.form_action, data=payload)
-                        
+
                         # Handle Cloudflare or anti-bot 403
-                        if response.status_code == 403 or "cloudflare" in response.text.lower():
+                        if (
+                            response.status_code == 403
+                            or "cloudflare" in response.text.lower()
+                        ):
                             error_msg = "blocked_by_anti_bot"
-                            logger.error(error_msg, extra={"status_code": response.status_code})
+                            logger.error(
+                                error_msg, extra={"status_code": response.status_code}
+                            )
                             errors.append(error_msg)
                             break
 
                         response.raise_for_status()
-                        
-                        if "frm_suche" in response.text and "jakarta.faces.ViewState" in response.text and "Suchergebnis" not in response.text:
+
+                        if (
+                            "frm_suche" in response.text
+                            and "jakarta.faces.ViewState" in response.text
+                            and "Suchergebnis" not in response.text
+                        ):
                             error_msg = "search_form_returned_without_results"
                             logger.error(error_msg)
                             errors.append(error_msg)
                             break
 
                         records = self._parse_response(response.text)
-                        records_seen, records_imported = self._persist_records(source_run_id, records, dry_run)
+                        records_seen, records_imported = self._persist_records(
+                            source_run_id, records, dry_run
+                        )
                         break  # Success, exit retry loop
 
                     except httpx.TimeoutException:
@@ -311,18 +325,18 @@ class OfficialPortalAdapter:
                         errors.append(error_msg)
                         break
                     except Exception as e:
-                        error_msg = f"Unexpected error: {str(e)}"
+                        error_msg = f"Unexpected error: {e!s}"
                         logger.error(error_msg)
                         errors.append(error_msg)
                         break
 
         except Exception as e:
-            error_msg = f"Session initialization failed: {str(e)}"
+            error_msg = f"Session initialization failed: {e!s}"
             logger.error(error_msg)
             errors.append(error_msg)
 
-        completed_at = datetime.now(timezone.utc).isoformat()
-        
+        completed_at = datetime.now(UTC).isoformat()
+
         if not dry_run:
             self.source_run_repo.complete_run(
                 source_run_id=source_run_id,
@@ -398,8 +412,13 @@ class OfficialPortalAdapter:
         """Parse the portal response into raw record dictionaries."""
         records = []
         try:
-            sanitized = re.sub(r"^\s*(<!--.*?-->\s*)+", "", html_or_xml, flags=re.DOTALL)
-            if sanitized.lstrip().startswith("<!DOCTYPE html") or "<html" in sanitized[:512].lower():
+            sanitized = re.sub(
+                r"^\s*(<!--.*?-->\s*)+", "", html_or_xml, flags=re.DOTALL
+            )
+            if (
+                sanitized.lstrip().startswith("<!DOCTYPE html")
+                or "<html" in sanitized[:512].lower()
+            ):
                 records = self._parse_html_results(sanitized)
                 logger.info(f"Parsed {len(records)} records from HTML response")
                 return records
@@ -422,5 +441,5 @@ class OfficialPortalAdapter:
             logger.error(f"Failed to parse JSF XML response: {e}")
         except Exception as e:
             logger.error(f"Unexpected error parsing response: {e}")
-            
+
         return records

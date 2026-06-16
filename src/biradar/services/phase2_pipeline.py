@@ -1,21 +1,20 @@
 """Service for executing the Phase 2 fully agentic pipeline."""
 
-import logging
+import hashlib
+import json
 import os
+import tempfile
 import uuid
 from asyncio import run as asyncio_run
 from datetime import UTC, date, datetime
 from pathlib import Path
-import json
-import hashlib
-import tempfile
 
 from biradar.config.settings import get_settings, load_config
-from biradar.graph.phase2_workflow import build_phase2_workflow
 from biradar.graph.checkpoints import CheckpointManager
+from biradar.graph.phase2_workflow import build_phase2_workflow
+from biradar.observability.logging import get_logger
 from biradar.sources.official_portal import OfficialPortalAdapter
 from biradar.storage.db import Database
-from biradar.observability.logging import get_logger
 from biradar.storage.repository import (
     AuditRepository,
     CandidateRepository,
@@ -30,7 +29,13 @@ logger = get_logger(__name__)
 
 def _load_dry_run_records(settings) -> tuple[str, list[dict]]:
     """Load fixture-backed source data for dry-run execution."""
-    fixture_path = settings.project_root / "tests" / "fixtures" / "official_portal" / "sample_response.html"
+    fixture_path = (
+        settings.project_root
+        / "tests"
+        / "fixtures"
+        / "official_portal"
+        / "sample_response.html"
+    )
     adapter = OfficialPortalAdapter(db=None)
     records = adapter._parse_response(fixture_path.read_text(encoding="utf-8"))
     return "dry_run_fixture", records
@@ -64,7 +69,9 @@ def _persist_phase2_results(
             publication_type=candidate.get("proceeding_stage"),
             status=candidate.get("status", "quarantined"),
             source_quality="A",
-            risk_flags=[candidate.get("quarantine_reason")] if candidate.get("quarantine_reason") else None,
+            risk_flags=[candidate.get("quarantine_reason")]
+            if candidate.get("quarantine_reason")
+            else None,
         )
         if candidate.get("raw_record_id"):
             candidate_repo.link_to_raw(
@@ -74,7 +81,9 @@ def _persist_phase2_results(
                 match_reason="phase2_ingest",
             )
 
-        extraction_result = final_state.get("extraction_results", {}).get(candidate_id, {})
+        extraction_result = final_state.get("extraction_results", {}).get(
+            candidate_id, {}
+        )
         evidence_snippets = extraction_result.get("evidence_snippets", {})
         confidence_scores = extraction_result.get("field_confidence_scores", {})
         for field, snippet in evidence_snippets.items():
@@ -85,11 +94,15 @@ def _persist_phase2_results(
                 source_url=candidate.get("source_url"),
                 retrieved_at=datetime.now(UTC).isoformat(),
                 field=field,
-                value=str(extraction_result.get(field) or candidate.get(field) or snippet),
+                value=str(
+                    extraction_result.get(field) or candidate.get(field) or snippet
+                ),
                 confidence=str(confidence_scores.get(field, 0.0)),
                 trust_level="A",
                 snippet=snippet,
-                content_hash=hashlib.sha256(f"{candidate_id}:{field}:{snippet}".encode("utf-8")).hexdigest(),
+                content_hash=hashlib.sha256(
+                    f"{candidate_id}:{field}:{snippet}".encode()
+                ).hexdigest(),
             )
 
         score_payload = final_state.get("scores", {}).get(candidate_id)
@@ -118,7 +131,9 @@ def _persist_phase2_results(
                 review_id=f"review_{uuid.uuid4().hex}",
                 candidate_id=candidate_id,
                 reviewer="system:risk_review",
-                decision="approve" if risk_payload.get("status") == "passed" else "reject",
+                decision="approve"
+                if risk_payload.get("status") == "passed"
+                else "reject",
                 from_status="deduped_candidate",
                 to_status=candidate.get("status", "quarantined"),
                 note=json.dumps(risk_payload, default=str),
@@ -136,14 +151,17 @@ def _persist_phase2_results(
         )
 
     publish_ready_candidates = [
-        candidate for candidate in final_state.get("issue_draft", {}).get("candidates", [])
+        candidate
+        for candidate in final_state.get("issue_draft", {}).get("candidates", [])
         if candidate.get("status") == "publish_ready"
     ]
     if not publish_ready_candidates or not export_path:
         return None
 
     issue_id = f"issue_{uuid.uuid4().hex}"
-    issue_title = final_state.get("issue_draft", {}).get("title", "Weekly Berlin Insolvency Radar")
+    issue_title = final_state.get("issue_draft", {}).get(
+        "title", "Weekly Berlin Insolvency Radar"
+    )
     draft_markdown = Path(export_path).read_text(encoding="utf-8")
     issue_repo.create_issue(
         issue_id=issue_id,
@@ -183,30 +201,40 @@ def run_phase2_pipeline(
 ) -> dict:
     """
     Execute the Phase 2 agentic workflow.
-    
+
     Args:
         start_date: Start of the scrape window.
         end_date: End of the scrape window.
         dry_run: If True, do not persist to DuckDB.
         thread_id: LangGraph thread ID for checkpointing/resume.
-        
+
     Returns:
         Execution summary and export paths.
     """
     logger.info(
         "Starting Phase 2 pipeline execution",
-        extra={"start_date": str(start_date), "end_date": str(end_date), "dry_run": dry_run},
+        extra={
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "dry_run": dry_run,
+        },
     )
-    
+
     # Warn if no API key is present (agents will fall back to mock mode)
     if not os.environ.get("DEEPSEEK_API_KEY"):
-        logger.warning("DEEPSEEK_API_KEY not set. LLM agents will operate in mock/fallback mode.")
-    
+        logger.warning(
+            "DEEPSEEK_API_KEY not set. LLM agents will operate in mock/fallback mode."
+        )
+
     settings = get_settings()
     target_db_path = Path(db_path) if db_path else settings.data_dir / "radar.duckdb"
-    official_source_cfg = load_config(settings.project_root / "config").sources.get("official_insolvency_berlin")
-    effective_source_mode = source_mode or (official_source_cfg.mode if official_source_cfg else "normal")
-    
+    official_source_cfg = load_config(settings.project_root / "config").sources.get(
+        "official_insolvency_berlin"
+    )
+    effective_source_mode = source_mode or (
+        official_source_cfg.mode if official_source_cfg else "normal"
+    )
+
     # 1. Initialize Database (skip if dry_run, though we might still want schema)
     if not dry_run:
         db = Database(target_db_path)
@@ -216,10 +244,10 @@ def run_phase2_pipeline(
         db = Database(":memory:")
         db.run_migrations()
         checkpoint_db_path = ":memory:"
-        
+
     # 2. Initialize Checkpoint Manager with appropriate path (prevents dry-run leakage)
     checkpoint_mgr = CheckpointManager(checkpoint_db_path)
-    
+
     # 3. Acquire source data before graph execution.
     if dry_run:
         source_run_id, raw_records = _load_dry_run_records(settings)
@@ -227,7 +255,11 @@ def run_phase2_pipeline(
         fixture_path = (
             Path(official_source_cfg.path)
             if official_source_cfg and official_source_cfg.path
-            else settings.project_root / "tests" / "fixtures" / "official_portal" / "sample_response.html"
+            else settings.project_root
+            / "tests"
+            / "fixtures"
+            / "official_portal"
+            / "sample_response.html"
         )
         fetch_result = OfficialPortalAdapter(db).fetch_fixture_date_range(
             fixture_path=str(fixture_path),
@@ -263,7 +295,9 @@ def run_phase2_pipeline(
     if not dry_run:
         AuditRepository(db).log_event(
             actor="system:phase2_pipeline",
-            action="phase2_acquisition_completed" if raw_records is not None else "phase2_acquisition_attempted",
+            action="phase2_acquisition_completed"
+            if raw_records is not None
+            else "phase2_acquisition_attempted",
             entity_type="source_run",
             entity_id=source_run_id,
             request_data={
@@ -277,8 +311,10 @@ def run_phase2_pipeline(
         )
 
     # 4. Build and Compile Workflow
-    workflow = build_phase2_workflow().compile(checkpointer=checkpoint_mgr.saver_instance)
-    
+    workflow = build_phase2_workflow().compile(
+        checkpointer=checkpoint_mgr.saver_instance
+    )
+
     # 5. Define Initial State (transient execution data + metadata)
     initial_state = {
         "source_run_id": source_run_id,
@@ -293,22 +329,24 @@ def run_phase2_pipeline(
         "errors": [],
         "warnings": [],
     }
-    
+
     # 6. Execute Workflow
     config = {"configurable": {"thread_id": thread_id}}
-    
+
     try:
-        # Note: In a full implementation, the 'ingest' node would be passed 
+        # Note: In a full implementation, the 'ingest' node would be passed
         # the start_date/end_date via config or state. For now, we pass it in config.
         config["configurable"]["start_date"] = start_date
         config["configurable"]["end_date"] = end_date
         config["configurable"]["dry_run"] = dry_run
-        
+
         final_state = workflow.invoke(initial_state, config)
         issue_id = None
         if not dry_run:
-            issue_id = _persist_phase2_results(db, final_state, final_state.get("export_path"))
-        
+            issue_id = _persist_phase2_results(
+                db, final_state, final_state.get("export_path")
+            )
+
         logger.info("Phase 2 pipeline completed successfully")
         return {
             "status": "success",
@@ -318,7 +356,7 @@ def run_phase2_pipeline(
             "warnings": final_state.get("warnings", []),
             "errors": final_state.get("errors", []),
         }
-        
+
     except Exception as e:
         logger.error("Phase 2 pipeline failed", exc_info=True)
         return {
@@ -356,16 +394,26 @@ def run_phase2_check() -> dict:
         db = Database(db_path)
         try:
             counts = {
-                "source_runs": db.conn.execute("SELECT COUNT(*) FROM source_runs").fetchone()[0],
-                "raw_records": db.conn.execute("SELECT COUNT(*) FROM raw_records").fetchone()[0],
-                "candidates": db.conn.execute("SELECT COUNT(*) FROM candidates").fetchone()[0],
-                "publish_ready": db.conn.execute("SELECT COUNT(*) FROM candidates WHERE status = 'publish_ready'").fetchone()[0],
+                "source_runs": db.conn.execute(
+                    "SELECT COUNT(*) FROM source_runs"
+                ).fetchone()[0],
+                "raw_records": db.conn.execute(
+                    "SELECT COUNT(*) FROM raw_records"
+                ).fetchone()[0],
+                "candidates": db.conn.execute(
+                    "SELECT COUNT(*) FROM candidates"
+                ).fetchone()[0],
+                "publish_ready": db.conn.execute(
+                    "SELECT COUNT(*) FROM candidates WHERE status = 'publish_ready'"
+                ).fetchone()[0],
                 "issues": db.conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0],
             }
         finally:
             db.close()
         return {
-            "status": "success" if first["status"] == "success" and second["status"] == "success" else "failed",
+            "status": "success"
+            if first["status"] == "success" and second["status"] == "success"
+            else "failed",
             "first_run": first,
             "second_run": second,
             "counts": counts,

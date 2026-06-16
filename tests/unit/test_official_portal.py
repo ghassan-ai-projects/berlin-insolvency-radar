@@ -3,6 +3,7 @@
 from datetime import date
 
 import pytest
+
 from biradar.sources.official_portal import OfficialPortalAdapter
 
 
@@ -29,10 +30,10 @@ def test_parse_response_extracts_jsf_table_data():
         </changes>
     </partial-response>
     """
-    
-    adapter = OfficialPortalAdapter(db=None) # db not needed for parsing
+
+    adapter = OfficialPortalAdapter(db=None)  # db not needed for parsing
     records = adapter._parse_response(mock_xml)
-    
+
     assert len(records) == 1
     record = records[0]
     assert record["company_name"] == "Test Berlin GmbH"
@@ -47,17 +48,19 @@ def test_parse_response_extracts_jsf_table_data():
 def test_parse_response_handles_empty_or_malformed_xml():
     """Test that the parser safely handles malformed XML without crashing."""
     adapter = OfficialPortalAdapter(db=None)
-    
+
     # Malformed XML
     records1 = adapter._parse_response("<broken><xml>")
     assert records1 == []
-    
+
     # Empty string
     records2 = adapter._parse_response("")
     assert records2 == []
-    
+
     # Valid XML but no table
-    records3 = adapter._parse_response('<?xml version="1.0"?><partial-response><update id="other">No table here</update></partial-response>')
+    records3 = adapter._parse_response(
+        '<?xml version="1.0"?><partial-response><update id="other">No table here</update></partial-response>'
+    )
     assert records3 == []
 
 
@@ -119,7 +122,9 @@ async def test_fetch_date_range_stops_retry_on_anti_bot(monkeypatch):
             attempts["post"] += 1
             return FakeResponse(403, "cloudflare blocked")
 
-    monkeypatch.setattr("biradar.sources.official_portal.httpx.AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        "biradar.sources.official_portal.httpx.AsyncClient", FakeAsyncClient
+    )
     monkeypatch.setattr("biradar.sources.official_portal.asyncio.sleep", fake_sleep)
 
     adapter = OfficialPortalAdapter(db=None)

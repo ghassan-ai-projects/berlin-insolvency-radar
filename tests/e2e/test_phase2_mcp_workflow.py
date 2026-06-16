@@ -14,7 +14,9 @@ def test_phase2_mcp_source_run_history_and_workflow_tool():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         radar_db_path = tmp_path / "phase2_mcp.duckdb"
-        container = AppContainer(Path(__file__).parent.parent.parent / "config", radar_db_path)
+        container = AppContainer(
+            Path(__file__).parent.parent.parent / "config", radar_db_path
+        )
         try:
             service_result = run_phase2_pipeline(
                 start_date=date(2026, 6, 10),
@@ -42,7 +44,10 @@ def test_phase2_mcp_source_run_history_and_workflow_tool():
                 {"entity_type": "source_run", "entity_id": source_run_id, "limit": 10},
             )
             assert source_audit.ok is True
-            assert any(event["action"] == "phase2_acquisition_completed" for event in source_audit.data)
+            assert any(
+                event["action"] == "phase2_acquisition_completed"
+                for event in source_audit.data
+            )
 
             workflow_result = call_radar_tool(
                 container,

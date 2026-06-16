@@ -34,7 +34,7 @@ def compute_dedupe_key(
 def deduplicate_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Deterministic deduplication of candidate records.
-    
+
     Groups candidates by dedupe key and keeps the first valid corporate record.
     Others are marked as 'duplicate'.
     """
@@ -59,10 +59,12 @@ def deduplicate_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, A
             candidate["canonical_candidate_id"] = seen_keys[key]
         else:
             # First time seeing this key, mark as canonical
-            seen_keys[key] = candidate.get("candidate_id", key.replace("dedupe_", "cand_"))
+            seen_keys[key] = candidate.get(
+                "candidate_id", key.replace("dedupe_", "cand_")
+            )
             candidate["candidate_id"] = seen_keys[key]
             candidate["status"] = "deduped_candidate"
-            
+
         deduped_candidates.append(candidate)
 
     return deduped_candidates

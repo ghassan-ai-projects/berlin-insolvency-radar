@@ -237,7 +237,13 @@ class IssueService:
             logger.exception("Failed to create issue draft")
             return ResultEnvelope(
                 ok=False,
-                errors=[{"code": "CREATE_DRAFT_FAILED", "message": "Internal error creating draft.", "retryable": True}],
+                errors=[
+                    {
+                        "code": "CREATE_DRAFT_FAILED",
+                        "message": "Internal error creating draft.",
+                        "retryable": True,
+                    }
+                ],
             )
 
     def export_issue(
@@ -318,7 +324,13 @@ class IssueService:
             if not str(export_path).startswith(str(self.export_dir.resolve())):
                 return ResultEnvelope(
                     ok=False,
-                    errors=[{"code": "EXPORT_FAILED", "message": "Export path escapes export directory.", "retryable": False}],
+                    errors=[
+                        {
+                            "code": "EXPORT_FAILED",
+                            "message": "Export path escapes export directory.",
+                            "retryable": False,
+                        }
+                    ],
                 )
 
             content = issue["draft_markdown"]
@@ -360,5 +372,11 @@ class IssueService:
             logger.exception("Failed to export issue %s", issue_id)
             return ResultEnvelope(
                 ok=False,
-                errors=[{"code": "EXPORT_FAILED", "message": "Internal error exporting issue.", "retryable": True}],
+                errors=[
+                    {
+                        "code": "EXPORT_FAILED",
+                        "message": "Internal error exporting issue.",
+                        "retryable": True,
+                    }
+                ],
             )

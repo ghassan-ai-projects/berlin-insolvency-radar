@@ -1,8 +1,10 @@
 """Unit tests for deterministic deduplication keys."""
 
-import pytest
-
-from biradar.domain.dedupe import compute_dedupe_key, deduplicate_candidates, normalize_string
+from biradar.domain.dedupe import (
+    compute_dedupe_key,
+    deduplicate_candidates,
+    normalize_string,
+)
 
 
 def test_normalize_string_for_matching():
@@ -64,12 +66,12 @@ def test_deduplicate_candidates_marks_duplicates():
             "status": "raw_candidate",
         },
     ]
-    
+
     result = deduplicate_candidates(candidates)
-    
+
     assert result[0]["status"] == "deduped_candidate"
     assert result[0]["candidate_id"] == "1"
-    
+
     assert result[1]["status"] == "duplicate"
     assert result[1]["canonical_candidate_id"] == "1"
 
@@ -93,9 +95,9 @@ def test_deduplicate_candidates_ignores_quarantined():
             "status": "raw_candidate",
         },
     ]
-    
+
     result = deduplicate_candidates(candidates)
-    
+
     # First is quarantined, stays quarantined
     assert result[0]["status"] == "quarantined"
     # Second becomes canonical since the first was ignored for dedupe

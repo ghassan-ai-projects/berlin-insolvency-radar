@@ -53,5 +53,11 @@ class HealthService:
             logger.exception("Health check failed")
             return ResultEnvelope(
                 ok=False,
-                errors=[{"code": "HEALTH_CHECK_FAILED", "message": "Internal error during health check.", "retryable": True}],
+                errors=[
+                    {
+                        "code": "HEALTH_CHECK_FAILED",
+                        "message": "Internal error during health check.",
+                        "retryable": True,
+                    }
+                ],
             )
