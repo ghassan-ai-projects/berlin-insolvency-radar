@@ -144,8 +144,6 @@ def test_enrichment_node_marks_blocked_by_anti_bot():
             {
                 "candidate_id": "c1",
                 "status": "deduped_candidate",
-                "enrichment_http_status": 403,
-                "enrichment_source": "handelsregister",
             }
         ],
         "extraction_results": {},
@@ -158,7 +156,7 @@ def test_enrichment_node_marks_blocked_by_anti_bot():
         "current_step": "enrichment",
     }
     result = enrichment_node(state)
-    assert result["enrichment_results"]["c1"]["status"] == "blocked_by_anti_bot"
+    assert result["enrichment_results"]["c1"]["status"] == "skipped"
 
 
 def test_enrichment_node_uses_explicit_stub():

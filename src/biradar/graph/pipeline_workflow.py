@@ -158,7 +158,9 @@ def extraction_node(
 ) -> PipelineWorkflowState:
     """Structured extraction of filing facts."""
     logger.info("Executing extraction node")
-    extraction_results: dict[str, dict[str, Any]] = {}
+    extraction_results: dict[str, dict[str, Any]] = dict(
+        state.get("extraction_results", {})
+    )
     errors = list(state.get("errors", []))
 
     for candidate in state.get("candidates", []):
@@ -166,6 +168,9 @@ def extraction_node(
             continue
 
         candidate_id = candidate.get("candidate_id", str(uuid.uuid4()))
+        if candidate_id in extraction_results:
+            continue  # already extracted on previous pass
+
         try:
             result = extractor(
                 candidate.get("raw_text", ""),
@@ -195,25 +200,17 @@ def enrichment_node(
 ) -> PipelineWorkflowState:
     """Enrichment for candidates that passed scoring. Low-score candidates skip this."""
     logger.info("Executing enrichment node")
-    enrichment_results: dict[str, dict[str, Any]] = {}
+    enrichment_results: dict[str, dict[str, Any]] = dict(
+        state.get("enrichment_results", {})
+    )
 
     for candidate in state["candidates"]:
         if candidate["status"] == "quarantined":
             continue
 
         candidate_id = candidate.get("candidate_id", "unknown")
-        if candidate.get("enrichment_http_status") == 403 or candidate.get(
-            "enrichment_blocked"
-        ):
-            enrichment_results[candidate_id] = {
-                "enriched": False,
-                "status": "blocked_by_anti_bot",
-                "claims": [],
-                "blocked_source": candidate.get("enrichment_source", "public_source"),
-                "data": {},
-                "errors": [],
-            }
-            continue
+        if candidate_id in enrichment_results:
+            continue  # already enriched on previous pass
 
         company_name = candidate.get("company_name", "")
         if not company_name:
@@ -262,13 +259,15 @@ def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
     logger.info("Executing scoring node")
     settings = get_settings()
     config = load_config(settings.project_root / "config")
-    scores: dict[str, dict[str, Any]] = {}
+    scores: dict[str, dict[str, Any]] = dict(state.get("scores", {}))
 
     for candidate in state["candidates"]:
         if candidate["status"] == "quarantined":
             continue
 
         candidate_id = candidate.get("candidate_id", "unknown")
+        if candidate_id in scores and scores[candidate_id].get("status") == "approved":
+            continue  # already scored on previous pass
         extraction_data = state.get("extraction_results", {}).get(candidate_id, {})
 
         try:

@@ -129,3 +129,81 @@ def test_pipeline_check_command_path_passes():
     assert result["counts"]["candidates"] == 1
     assert result["counts"]["publish_ready"] == 1
     assert result["counts"]["issues"] == 1  # second run skips already-processed records
+
+
+def test_pipeline_risk_review_retry_does_not_reprocess():
+    """Risk review retry must not re-extract/re-enrich already-processed candidates."""
+    from collections import defaultdict
+
+    from biradar.agents.extraction import ExtractionResult
+
+    extraction_counts: dict[str, int] = defaultdict(int)
+
+    def counting_extractor(raw_text: str, source_url: str) -> ExtractionResult:
+        # Derive candidate identity from source_url (fixture has unique URLs)
+        cid = source_url or raw_text[:20]
+        extraction_counts[cid] += 1
+        return ExtractionResult(
+            company_name="Test GmbH",
+            legal_form="GmbH",
+            court="Amtsgericht Charlottenburg",
+            case_number="36e IN 123/26",
+            filing_date="2026-06-15",
+            proceeding_stage="Eroeffnungsbeschluss",
+            is_consumer_likely=False,
+            field_confidence_scores={
+                "company_name": 0.95,
+                "case_number": 0.93,
+                "court": 0.90,
+            },
+            evidence_snippets={
+                "company_name": "Test GmbH",
+                "case_number": "36e IN 123/26",
+                "court": "Amtsgericht Charlottenburg",
+            },
+        )
+
+    review_call_counts: dict[str, int] = defaultdict(int)
+
+    def flaky_reviewer(candidate_data, extraction_data, enrichment_data, draft_thesis):
+        from biradar.agents.risk_review import RiskReviewResult
+
+        cid = candidate_data.get("candidate_id", "unknown")
+        review_call_counts[cid] += 1
+        if review_call_counts[cid] == 1:
+            return RiskReviewResult(
+                passed_review=False,
+                rejection_reasons=["Simulated failure"],
+                confidence_in_review=0.3,
+            )
+        return RiskReviewResult(
+            passed_review=True,
+            rejection_reasons=None,
+            confidence_in_review=0.9,
+        )
+
+    start_date = date(2026, 6, 10)
+    end_date = date(2026, 6, 16)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "retry_test.duckdb"
+        result = run_pipeline(
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=False,
+            thread_id="test_retry",
+            db_path=db_path,
+            source_mode="fixture",
+            extractor=counting_extractor,
+            risk_reviewer=flaky_reviewer,
+            enricher=_stub_enricher,
+        )
+
+    assert result["status"] == "success"
+    # Each candidate should be extracted exactly once (not re-extracted on retry)
+    for cid, count in extraction_counts.items():
+        assert count == 1, f"Candidate {cid} was extracted {count} times, expected 1"
+    # At least one candidate had a retry
+    assert any(c > 1 for c in review_call_counts.values()), (
+        f"Expected at least one risk review retry, got counts: {dict(review_call_counts)}"
+    )

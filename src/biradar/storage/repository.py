@@ -304,6 +304,15 @@ class RawRecordRepository:
         columns = [desc[0] for desc in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+    def list_by_source_run(self, source_run_id: str) -> list[dict[str, Any]]:
+        """Get all raw records for a source run."""
+        cursor = self.db.conn.execute(
+            "SELECT * FROM raw_records WHERE source_run_id = ?",
+            [source_run_id],
+        )
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
 
 class SourceRunRepository:
     """Handles source run record operations."""
@@ -341,6 +350,37 @@ class SourceRunRepository:
             return None
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
+
+    def find_covering_run(
+        self,
+        source_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> str | None:
+        """Return source_run_id of a completed run whose date window covers the
+        requested range. Returns None if no covering run exists."""
+        cursor = self.db.conn.execute(
+            """
+            SELECT source_run_id, params_json FROM source_runs
+            WHERE source_id = ? AND status IN ('completed', 'success')
+            ORDER BY completed_at DESC
+            """,
+            [source_id],
+        )
+        for row in cursor.fetchall():
+            run_id, params_json = row
+            if not params_json:
+                continue
+            try:
+                import json
+                params = json.loads(params_json)
+                run_start = params.get("start_date")
+                run_end = params.get("end_date")
+                if run_start and run_end and run_start <= start_date and run_end >= end_date:
+                    return run_id
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return None
 
     def list_runs(
         self,
@@ -417,6 +457,19 @@ class EvidenceRepository:
 
     def __init__(self, db: Database):
         self.db = db
+
+    def get_existing_fields(
+        self, candidate_ids: list[str]
+    ) -> set[tuple[str, str]]:
+        """Return set of (candidate_id, field) pairs that already have evidence."""
+        if not candidate_ids:
+            return set()
+        placeholders = ",".join("?" * len(candidate_ids))
+        cursor = self.db.conn.execute(
+            f"SELECT DISTINCT candidate_id, field FROM evidence_items WHERE candidate_id IN ({placeholders})",
+            candidate_ids,
+        )
+        return {(row[0], row[1]) for row in cursor.fetchall()}
 
     def insert_evidence(
         self,

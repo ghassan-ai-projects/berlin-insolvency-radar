@@ -15,7 +15,7 @@ from biradar.config.settings import get_settings, load_config
 from biradar.graph.checkpoints import CheckpointManager
 from biradar.graph.pipeline_workflow import build_pipeline_workflow
 from biradar.observability.logging import get_logger
-from biradar.sources.enrichment import EnrichmentResult
+from biradar.sources.enrichment import EnrichmentResult, _reset_disabled_sources
 from biradar.sources.official_portal import OfficialPortalAdapter
 from biradar.storage.db import Database
 from biradar.storage.repository import (
@@ -23,8 +23,10 @@ from biradar.storage.repository import (
     CandidateRepository,
     EvidenceRepository,
     IssueRepository,
+    RawRecordRepository,
     ReviewRepository,
     ScoreRepository,
+    SourceRunRepository,
 )
 
 logger = get_logger(__name__)
@@ -121,6 +123,14 @@ def _persist_results(
     audit_repo = AuditRepository(db)
 
     score_ids: dict[str, str] = {}
+    # Batch pre-load existing evidence fields to skip redundant inserts on re-runs
+    all_candidate_ids = [
+        c.get("candidate_id")
+        for c in final_state.get("candidates", [])
+        if c.get("quarantine_reason") != "already_processed" and c.get("candidate_id")
+    ]
+    existing_evidence = evidence_repo.get_existing_fields(all_candidate_ids)
+
     for candidate in final_state.get("candidates", []):
         # Already-processed records have existing linked candidates — skip persistence.
         if candidate.get("quarantine_reason") == "already_processed":
@@ -157,6 +167,8 @@ def _persist_results(
         evidence_snippets = extraction_result.get("evidence_snippets", {})
         confidence_scores = extraction_result.get("field_confidence_scores", {})
         for field, snippet in evidence_snippets.items():
+            if (candidate_id, field) in existing_evidence:
+                continue  # already persisted from previous run
             evidence_repo.insert_evidence(
                 evidence_id=f"evid_{uuid.uuid4().hex}",
                 candidate_id=candidate_id,
@@ -326,21 +338,53 @@ def run_pipeline(
             source_run_id = fetch_result["source_run_id"]
             raw_records = fetch_result.get("records", [])
         else:
-            fetch_result = asyncio_run(
-                OfficialPortalAdapter(db).fetch_date_range(
-                    start_date=start_date,
-                    end_date=end_date,
-                    dry_run=False,
-                )
+            # Check if we already have a completed run covering this date window.
+            # If so, reuse cached records instead of hitting the live portal again.
+            source_id = "official_insolvency_berlin"
+            source_run_repo = SourceRunRepository(db)
+            covering_run_id = source_run_repo.find_covering_run(
+                source_id,
+                start_date.isoformat(),
+                end_date.isoformat(),
             )
-            if fetch_result["status"] != "completed":
-                return {
-                    "status": "failed",
-                    "error": "Official portal acquisition failed",
-                    "errors": fetch_result.get("errors", []),
-                }
-            source_run_id = fetch_result["source_run_id"]
-            raw_records = fetch_result.get("records", [])
+            if covering_run_id:
+                raw_record_repo = RawRecordRepository(db)
+                cached_records = raw_record_repo.list_by_source_run(covering_run_id)
+                if cached_records:
+                    source_run_id = covering_run_id
+                    raw_records = cached_records
+                else:
+                    fetch_result = asyncio_run(
+                        OfficialPortalAdapter(db).fetch_date_range(
+                            start_date=start_date,
+                            end_date=end_date,
+                            dry_run=False,
+                        )
+                    )
+                    if fetch_result["status"] != "completed":
+                        return {
+                            "status": "failed",
+                            "error": "Official portal acquisition failed",
+                            "errors": fetch_result.get("errors", []),
+                        }
+                    source_run_id = fetch_result["source_run_id"]
+                    raw_records = fetch_result.get("records", [])
+            else:
+                fetch_result = asyncio_run(
+                    OfficialPortalAdapter(db).fetch_date_range(
+                        start_date=start_date,
+                        end_date=end_date,
+                        dry_run=False,
+                    )
+                )
+                if fetch_result["status"] != "completed":
+                    return {
+                        "status": "failed",
+                        "error": "Official portal acquisition failed",
+                        "errors": fetch_result.get("errors", []),
+                    }
+                source_run_id = fetch_result["source_run_id"]
+                raw_records = fetch_result.get("records", [])
 
         if not dry_run:
             AuditRepository(db).log_event(
@@ -357,6 +401,8 @@ def run_pipeline(
                 },
                 result_data={"raw_records": len(raw_records)},
             )
+
+        _reset_disabled_sources()
 
         workflow = build_pipeline_workflow(
             extractor=extractor,
