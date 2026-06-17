@@ -1,26 +1,27 @@
-<!-- Mock JSF partial response for neu.insolvenzbekanntmachungen.de -->
-<!-- This fixture represents a successful search result containing one GmbH filing -->
-<?xml version="1.0" encoding="UTF-8"?>
-<partial-response>
-    <changes>
-        <update id="form:results">
-            <![CDATA[
-            <table id="form:resultsTable">
-                <tbody>
-                    <tr>
-                        <td>15.06.2026</td>
-                        <td>36e IN 123/26</td>
-                        <td>Amtsgericht Charlottenburg (Berlin)</td>
-                        <td>Test Berlin GmbH</td>
-                        <td>Berlin</td>
-                        <td>Berlin, HRB 123456</td>
-                    </tr>
-                </tbody>
-            </table>
-            ]]>
-        </update>
-        <update id="javax.faces.ViewState">
-            <![CDATA[-1234567890abcdef]]>
-        </update>
-    </changes>
-</partial-response>
+<!-- Fixture representing a live portal search result (full HTML page with tbl_ergebnis) -->
+<!-- Generated from: https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf -->
+<!-- Search: Berlin, single-day window -->
+<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Insolvenzbekanntmachungen: Suchergebnis - Veröffentlichungsliste</title>
+</head>
+<body>
+    <h1>Suchergebnis</h1>
+    <input type="hidden" name="jakarta.faces.ViewState" id="j_id1:jakarta.faces.ViewState:0" value="-1234567890abcdef" />
+
+    <table id="tbl_ergebnis" class="ergebnis table table-striped table-sm table-bordered">
+        <tbody>
+            <tr>
+                <td>15.06.2026</td>
+                <td>36e IN 123/26</td>
+                <td>Amtsgericht Charlottenburg (Berlin)</td>
+                <td>Test Berlin GmbH</td>
+                <td>Berlin</td>
+                <td>Berlin, HRB 123456</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

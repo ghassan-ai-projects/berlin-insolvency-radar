@@ -1,10 +1,30 @@
 """Unit tests for official portal source adapter parsing."""
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 
 from biradar.sources.official_portal import OfficialPortalAdapter
+
+FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "official_portal"
+
+
+def test_parse_html_response_extracts_table_data():
+    """Test that the HTML results parser correctly extracts rows from the live portal format."""
+    html_fixture = (FIXTURE_DIR / "sample_response.html").read_text(encoding="utf-8")
+    adapter = OfficialPortalAdapter(db=None)
+
+    records = adapter._parse_response(html_fixture)
+
+    assert len(records) == 1
+    record = records[0]
+    assert record["company_name"] == "Test Berlin GmbH"
+    assert record["legal_form"] == "GmbH"
+    assert record["court"] == "Amtsgericht Charlottenburg (Berlin)"
+    assert record["case_number"] == "36e IN 123/26"
+    assert record["publication_date"] == "2026-06-15"
+    assert record["register_number"] == "Berlin, HRB 123456"
 
 
 def test_parse_response_extracts_jsf_table_data():

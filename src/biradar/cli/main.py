@@ -85,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="pipeline_default",
         help="LangGraph thread ID for checkpointing and resume.",
     )
+    pipeline_parser.add_argument(
+        "--max-records",
+        type=int,
+        default=None,
+        help="Cap raw records processed (useful for quick validation runs).",
+    )
     subparsers.add_parser(
         "pipeline-check",
         help="Run fixture-backed validation with deterministic stubs against a temporary DuckDB.",
@@ -131,6 +137,7 @@ def main() -> None:
                 end_date=end_date,
                 dry_run=args.dry_run,
                 thread_id=args.thread_id,
+                max_records=args.max_records,
             )
 
             if result["status"] == "success":

@@ -79,7 +79,7 @@ def _build_score_input(
 
     asset_quality = 2
     sector_attractiveness = 2
-    speed_of_action = 2 + int("er" in stage) + int(evidence_count >= 2)
+    speed_of_action = 3 + int("er" in stage) + int(evidence_count >= 2)
     legal_risk = 3 - int(evidence_count >= 2)
 
     def clamp(value: int) -> int:
@@ -321,13 +321,37 @@ def risk_review_node(
 
         candidate_id = candidate.get("candidate_id", "unknown")
         retries = retry_counts.get(candidate_id, 0)
-        draft_thesis = (
-            f"Opportunity in {candidate.get('proceeding_stage', 'insolvency')} "
-            f"for {candidate.get('company_name', 'Unknown')}."
-        )
         extraction_data = state.get("extraction_results", {}).get(candidate_id, {})
         enrichment_data = state.get("enrichment_results", {}).get(candidate_id, {})
         evidence_snippets = extraction_data.get("evidence_snippets", {})
+
+        # Build a fact-rich thesis from available extraction evidence
+        facts = []
+        company = extraction_data.get("company_name") or candidate.get("company_name", "Unknown")
+        legal = extraction_data.get("legal_form") or candidate.get("legal_form", "")
+        case_no = extraction_data.get("case_number") or candidate.get("case_number", "")
+        court = extraction_data.get("court") or candidate.get("court", "")
+        filing = extraction_data.get("filing_date") or candidate.get("publication_date", "")
+        stage = extraction_data.get("proceeding_stage") or candidate.get("proceeding_stage", "")
+
+        if company:
+            facts.append(company)
+        if legal:
+            facts.append(f"a {legal}")
+        if case_no:
+            facts.append(f"case {case_no}")
+        if court:
+            facts.append(f"at {court}")
+        if filing:
+            facts.append(f"filed {filing}")
+        if stage:
+            facts.append(f"stage: {stage}")
+
+        fact_line = ", ".join(facts) if facts else f"for {candidate.get('company_name', 'Unknown')}"
+        draft_thesis = (
+            f"Potential opportunity involving {fact_line}. "
+            f"Evidence includes {len(evidence_snippets)} verified fields from the official insolvency register."
+        )
         unsupported_claims = [
             claim
             for claim in enrichment_data.get("claims", [])

@@ -282,6 +282,7 @@ def run_pipeline(
     extractor: Any | None = None,
     risk_reviewer: Any | None = None,
     enricher: Any | None = None,
+    max_records: int | None = None,
 ) -> dict[str, Any]:
     """Execute the agentic workflow pipeline."""
     logger.info(
@@ -426,6 +427,10 @@ def run_pipeline(
                         raw_ids,
                     ).fetchall()
                 ]
+
+        if max_records is not None and len(raw_records) > max_records:
+            logger.info(f"Capping raw records from {len(raw_records)} to {max_records}")
+            raw_records = raw_records[:max_records]
 
         initial_state = {
             "source_run_id": source_run_id,
