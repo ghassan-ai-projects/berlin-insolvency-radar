@@ -105,6 +105,47 @@ def test_parse_response_handles_leading_comments_before_xml_declaration():
     assert records[0]["company_name"] == "Alpha UG"
 
 
+def test_parse_response_extracts_span_based_live_layout():
+    adapter = OfficialPortalAdapter(db=None)
+    html = """<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Suchergebnis</h1>
+    <div id="tbl_ergebnis:0:otx_datum">19.06.2026</div>
+    <div id="tbl_ergebnis:0:otx_aktenzeichen">12 IN 99/26</div>
+    <div id="tbl_ergebnis:0:otx_gericht">Amtsgericht Charlottenburg</div>
+    <div id="tbl_ergebnis:0:otx_schuldner">Modern Berlin GmbH</div>
+    <div id="tbl_ergebnis:0:otx_registereintrag">Berlin, HRB 999999</div>
+  </body>
+</html>
+"""
+    records = adapter._parse_response(html)
+
+    assert len(records) == 1
+    record = records[0]
+    assert record["company_name"] == "Modern Berlin GmbH"
+    assert record["court"] == "Amtsgericht Charlottenburg"
+    assert record["case_number"] == "12 IN 99/26"
+    assert record["publication_date"] == "2026-06-19"
+    assert record["register_number"] == "Berlin, HRB 999999"
+
+
+def test_parse_response_classifies_too_many_results_page():
+    adapter = OfficialPortalAdapter(db=None)
+    html = """<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Suchergebnis</h1>
+    <table><tr><td>Ihre Suche ergab zu viele Treffer. Die maximale Trefferzahl beträgt 1000.</td></tr></table>
+  </body>
+</html>
+"""
+    parsed = adapter._parse_response_details(html)
+
+    assert parsed.records == []
+    assert parsed.error_code == "too_many_results"
+
+
 @pytest.mark.anyio
 async def test_fetch_date_range_stops_retry_on_anti_bot(monkeypatch):
     attempts = {"post": 0}

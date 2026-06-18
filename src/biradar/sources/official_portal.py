@@ -11,6 +11,7 @@ import json
 import re
 import uuid
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,13 @@ logger = get_logger(__name__)
 
 PORTAL_URL = "https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+
+@dataclass
+class ParsedPortalResponse:
+    records: list[dict[str, Any]]
+    parser_name: str
+    error_code: str | None = None
 
 
 def _infer_legal_form(company_name: str) -> str | None:
@@ -300,17 +308,13 @@ class OfficialPortalAdapter:
 
                         response.raise_for_status()
 
-                        if (
-                            "frm_suche" in response.text
-                            and "jakarta.faces.ViewState" in response.text
-                            and "Suchergebnis" not in response.text
-                        ):
-                            error_msg = "search_form_returned_without_results"
-                            logger.error(error_msg)
-                            errors.append(error_msg)
+                        parsed = self._parse_response_details(response.text)
+                        if parsed.error_code:
+                            logger.error(parsed.error_code)
+                            errors.append(parsed.error_code)
                             break
 
-                        records = self._parse_response(response.text)
+                        records = parsed.records
                         records_seen, records_imported = self._persist_records(
                             source_run_id, records, dry_run
                         )
@@ -409,6 +413,9 @@ class OfficialPortalAdapter:
         result_table = soup.find("table", id="tbl_ergebnis")
         if result_table:
             return self._extract_records_from_table(result_table)
+        span_records = self._extract_records_from_span_results(soup)
+        if span_records:
+            return span_records
         # Fallback: try any table with enough columns
         for table in soup.find_all("table"):
             records = self._extract_records_from_table(table)
@@ -416,9 +423,123 @@ class OfficialPortalAdapter:
                 return records
         return []
 
+    def _extract_records_from_span_results(
+        self, soup: BeautifulSoup
+    ) -> list[dict[str, Any]]:
+        """Extract result rows from the modern span/div-based portal layout."""
+        grouped_fields: dict[str, dict[str, str]] = {}
+
+        for node in soup.find_all(id=re.compile(r"tbl_ergebnis:\d+:otx_")):
+            node_id = node.get("id", "")
+            match = re.match(r"tbl_ergebnis:(\d+):otx_([^:]+)", node_id)
+            if not match:
+                continue
+            row_idx, field_name = match.groups()
+            grouped_fields.setdefault(row_idx, {})[field_name.lower()] = node.get_text(
+                strip=True
+            )
+
+        records: list[dict[str, Any]] = []
+        for row_idx in sorted(grouped_fields.keys(), key=int):
+            fields = grouped_fields[row_idx]
+
+            publication_date = ""
+            case_number = ""
+            court = ""
+            company_name = ""
+            register_number = ""
+
+            for field_name, value in fields.items():
+                if not publication_date and "datum" in field_name:
+                    publication_date = value
+                elif not case_number and (
+                    "aktenzeichen" in field_name or field_name == "az"
+                ):
+                    case_number = value
+                elif not court and "gericht" in field_name:
+                    court = value
+                elif not company_name and any(
+                    marker in field_name
+                    for marker in ("schuldner", "firma", "name", "bezeichnung")
+                ):
+                    company_name = value
+                elif not register_number and "register" in field_name:
+                    register_number = value
+
+            if not company_name or not court or not case_number:
+                continue
+
+            normalized_pub_date = _normalize_publication_date(publication_date)
+            raw_text = " | ".join(value for value in fields.values() if value)
+            records.append(
+                {
+                    "external_id": f"{court}_{case_number}",
+                    "company_name": company_name,
+                    "legal_form": _infer_legal_form(company_name),
+                    "court": court,
+                    "case_number": case_number,
+                    "register_number": register_number,
+                    "publication_date": normalized_pub_date,
+                    "raw_text": raw_text,
+                    "source_url": PORTAL_URL,
+                }
+            )
+
+        return records
+
+    def _detect_portal_error(self, sanitized: str) -> str | None:
+        """Detect well-known portal error/result pages before generic parsing."""
+        lowered = sanitized.lower()
+        if "maximale trefferzahl beträgt" in lowered:
+            return "too_many_results"
+        if (
+            "frm_suche" in sanitized
+            and "jakarta.faces.ViewState" in sanitized
+            and "Suchergebnis" not in sanitized
+        ):
+            return "search_form_returned_without_results"
+        return None
+
+    def _parse_html_details(self, sanitized: str) -> ParsedPortalResponse:
+        """Parse a full HTML page into a classified portal response."""
+        error_code = self._detect_portal_error(sanitized)
+        if error_code:
+            return ParsedPortalResponse([], "portal_error_parser", error_code)
+
+        records = self._parse_html_results(sanitized)
+        if records:
+            return ParsedPortalResponse(records, "html_results_parser")
+
+        if "Suchergebnis" in sanitized:
+            return ParsedPortalResponse([], "html_results_parser", "parser_mismatch")
+        return ParsedPortalResponse([], "html_results_parser")
+
+    def _parse_jsf_details(self, sanitized: str) -> ParsedPortalResponse:
+        """Parse a JSF partial response into a classified portal response."""
+        records: list[dict[str, Any]] = []
+        root = ET.fromstring(sanitized)
+        for update in root.findall(".//update"):
+            update_id = update.get("id", "")
+            if "resultsTable" not in update_id and "results" not in update_id:
+                continue
+            cdata_content = update.text
+            if not cdata_content:
+                continue
+            parsed = self._parse_html_details(cdata_content)
+            if parsed.error_code:
+                return parsed
+            records.extend(parsed.records)
+
+        if records:
+            return ParsedPortalResponse(records, "jsf_partial_parser")
+        return ParsedPortalResponse([], "jsf_partial_parser")
+
     def _parse_response(self, html_or_xml: str) -> list[dict[str, Any]]:
         """Parse the portal response into raw record dictionaries."""
-        records = []
+        return self._parse_response_details(html_or_xml).records
+
+    def _parse_response_details(self, html_or_xml: str) -> ParsedPortalResponse:
+        """Parse the portal response into records plus parser metadata."""
         try:
             sanitized = re.sub(
                 r"^\s*(<!--.*?-->\s*)+", "", html_or_xml, flags=re.DOTALL
@@ -427,27 +548,24 @@ class OfficialPortalAdapter:
                 sanitized.lstrip().startswith("<!DOCTYPE html")
                 or "<html" in sanitized[:512].lower()
             ):
-                records = self._parse_html_results(sanitized)
-                logger.info(f"Parsed {len(records)} records from HTML response")
-                return records
+                parsed = self._parse_html_details(sanitized)
+                logger.info(
+                    "Parsed %d records from HTML response via %s",
+                    len(parsed.records),
+                    parsed.parser_name,
+                )
+                return parsed
 
-            root = ET.fromstring(sanitized)
-            for update in root.findall(".//update"):
-                update_id = update.get("id", "")
-                if "resultsTable" not in update_id and "results" not in update_id:
-                    continue
-                cdata_content = update.text
-                if not cdata_content:
-                    continue
-                soup = BeautifulSoup(cdata_content, "html.parser")
-                table = soup.find("table")
-                if not table:
-                    continue
-                records.extend(self._extract_records_from_table(table))
-            logger.info(f"Parsed {len(records)} records from JSF response")
+            parsed = self._parse_jsf_details(sanitized)
+            logger.info(
+                "Parsed %d records from JSF response via %s",
+                len(parsed.records),
+                parsed.parser_name,
+            )
+            return parsed
         except ET.ParseError as e:
             logger.error(f"Failed to parse JSF XML response: {e}")
+            return ParsedPortalResponse([], "jsf_partial_parser", "parser_mismatch")
         except Exception as e:
             logger.error(f"Unexpected error parsing response: {e}")
-
-        return records
+            return ParsedPortalResponse([], "unknown_parser", "parser_mismatch")
