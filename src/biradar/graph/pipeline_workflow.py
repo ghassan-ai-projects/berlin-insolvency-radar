@@ -30,7 +30,7 @@ def _build_enrichment_claims(result: Any) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     for src in result.sources:
         source_name = src.get("source", "unknown")
-        source_url = src.get("url") or None
+        source_url = src.get("url") or src.get("source_url") or None
         for field in (
             "sector",
             "legal_form",
@@ -327,12 +327,18 @@ def risk_review_node(
 
         # Build a fact-rich thesis from available extraction evidence
         facts = []
-        company = extraction_data.get("company_name") or candidate.get("company_name", "Unknown")
+        company = extraction_data.get("company_name") or candidate.get(
+            "company_name", "Unknown"
+        )
         legal = extraction_data.get("legal_form") or candidate.get("legal_form", "")
         case_no = extraction_data.get("case_number") or candidate.get("case_number", "")
         court = extraction_data.get("court") or candidate.get("court", "")
-        filing = extraction_data.get("filing_date") or candidate.get("publication_date", "")
-        stage = extraction_data.get("proceeding_stage") or candidate.get("proceeding_stage", "")
+        filing = extraction_data.get("filing_date") or candidate.get(
+            "publication_date", ""
+        )
+        stage = extraction_data.get("proceeding_stage") or candidate.get(
+            "proceeding_stage", ""
+        )
 
         if company:
             facts.append(company)
@@ -347,7 +353,11 @@ def risk_review_node(
         if stage:
             facts.append(f"stage: {stage}")
 
-        fact_line = ", ".join(facts) if facts else f"for {candidate.get('company_name', 'Unknown')}"
+        fact_line = (
+            ", ".join(facts)
+            if facts
+            else f"for {candidate.get('company_name', 'Unknown')}"
+        )
         draft_thesis = (
             f"Potential opportunity involving {fact_line}. "
             f"Evidence includes {len(evidence_snippets)} verified fields from the official insolvency register."

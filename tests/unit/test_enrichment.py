@@ -13,6 +13,8 @@ from biradar.sources.enrichment import (
     _get_enrichment_config,
     _reset_disabled_sources,
     enrich_candidate,
+    lookup_north_data,
+    lookup_wikidata,
 )
 
 
@@ -220,6 +222,24 @@ class TestAggregateResult:
         assert result["sector"] is None
         assert result["tech_stack"] is None
 
+    def test_aggregates_north_data_and_wikidata(self):
+        sources = [
+            {
+                "source": "north_data",
+                "registry_number": "HRB 555",
+                "sector": "Software development",
+            },
+            {
+                "source": "wikidata",
+                "website_url": "https://example.org",
+                "sector": "Artificial intelligence",
+            },
+        ]
+        result = _aggregate_result(sources)
+        assert result["registry_number"] == "HRB 555"
+        assert result["sector"] == "Artificial intelligence"
+        assert result["website_url"] == "https://example.org"
+
 
 class TestBuildCompanySlug:
     def test_strips_gmbh(self):
@@ -276,3 +296,111 @@ class TestEnrichmentResult:
         assert result.enriched is True
         assert result.sector == "Tech"
         assert result.website_url == "https://example.com"
+
+
+class TestAdditionalSources:
+    def test_lookup_north_data_extracts_registry_fields(self, monkeypatch):
+        class FakeResponse:
+            def __init__(self, text: str):
+                self.text = text
+
+            def raise_for_status(self):
+                return None
+
+        class FakeClient:
+            def get(self, url, params=None):
+                if params is not None:
+                    return FakeResponse(
+                        """
+                        <html><body>
+                          <a href="/Example%20GmbH,%20Berlin/Amtsgericht%20Berlin%20HRB%2012345">Example GmbH</a>
+                        </body></html>
+                        """
+                    )
+                if "HRB%2012345" in url:
+                    return FakeResponse(
+                        """
+                        <html>
+                          <head><title>Example GmbH, Berlin, Amtsgericht Berlin HRB 12345: Netzwerk</title></head>
+                          <body>
+                            <script type="application/ld+json">
+                              {"@type":"BreadcrumbList","itemListElement":[{"item":{"name":"Firmen"}},{"item":{"name":"Software publishing"}}]}
+                            </script>
+                          </body>
+                        </html>
+                        """
+                    )
+                raise AssertionError(f"Unexpected URL: {url}")
+
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_client", lambda: FakeClient()
+        )
+        result = lookup_north_data("Example GmbH")
+        assert result is not None
+        assert result["registry_number"] == "HRB 12345"
+        assert result["sector"] == "Software publishing"
+
+    def test_lookup_wikidata_extracts_sector_and_website(self, monkeypatch):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self.payload
+
+        class FakeClient:
+            def get(self, _url, params):
+                action = params["action"]
+                if action == "wbsearchentities":
+                    return FakeResponse({"search": [{"id": "Q1"}]})
+                if action == "wbgetentities" and params["ids"] == "Q1":
+                    return FakeResponse(
+                        {
+                            "entities": {
+                                "Q1": {
+                                    "claims": {
+                                        "P856": [
+                                            {
+                                                "mainsnak": {
+                                                    "datavalue": {
+                                                        "value": "https://example.org"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "P452": [
+                                            {
+                                                "mainsnak": {
+                                                    "datavalue": {"value": {"id": "Q2"}}
+                                                }
+                                            }
+                                        ],
+                                    }
+                                }
+                            }
+                        }
+                    )
+                if action == "wbgetentities" and params["ids"] == "Q2":
+                    return FakeResponse(
+                        {
+                            "entities": {
+                                "Q2": {
+                                    "labels": {
+                                        "en": {"value": "Artificial intelligence"}
+                                    }
+                                }
+                            }
+                        }
+                    )
+                raise AssertionError(f"Unexpected params: {params}")
+
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_client", lambda: FakeClient()
+        )
+        result = lookup_wikidata("Example GmbH")
+        assert result is not None
+        assert result["website_url"] == "https://example.org"
+        assert result["sector"] == "Artificial intelligence"

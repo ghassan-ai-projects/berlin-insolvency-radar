@@ -2,6 +2,7 @@
 
 from biradar.agents.risk_review import RiskReviewResult
 from biradar.graph.pipeline_workflow import (
+    _build_enrichment_claims,
     build_pipeline_workflow,
     draft_assembly_node,
     enrichment_node,
@@ -244,6 +245,26 @@ def test_draft_assembly_enforces_export_gates():
     )
     assert "editorial" in result["issue_draft"]["candidates"][0]["content_sections"]
     assert any("Excluded c2 from export" in warning for warning in result["warnings"])
+
+
+def test_build_enrichment_claims_uses_source_url_fallback():
+    result = EnrichmentResult(
+        company_name="Example GmbH",
+        enriched=True,
+        sources=[
+            {
+                "source": "north_data",
+                "source_url": "https://www.northdata.de/example",
+                "registry_number": "HRB 12345",
+            }
+        ],
+    )
+
+    claims = _build_enrichment_claims(result)
+
+    assert len(claims) == 1
+    assert claims[0]["field"] == "registry_number"
+    assert claims[0]["source_url"] == "https://www.northdata.de/example"
 
 
 def test_risk_review_quarantines_unsupported_non_inference_claims():

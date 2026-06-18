@@ -14,6 +14,7 @@ Gating: controlled by `config/sources.yaml` enrichment settings.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import socket
@@ -26,6 +27,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from biradar.config.settings import get_settings, load_config
@@ -66,6 +68,8 @@ TECH_SIGNALS: list[tuple[str, re.Pattern]] = [
 BUNDESANZEIGER_SEARCH_URL = "https://www.bundesanzeiger.de/pub/de/suchergebnis"
 GITHUB_API_BASE = "https://api.github.com"
 HANDELSREGISTER_SEARCH_URL = "https://www.handelsregister.de/rp_web/search.do"
+NORTH_DATA_BASE_URL = "https://www.northdata.de"
+WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 
 
 # ---------------------------------------------------------------------------
@@ -542,11 +546,166 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
         return None
 
 
+def lookup_north_data(company_name: str) -> dict[str, Any] | None:
+    """Search North Data for public registry and sector metadata."""
+    try:
+        client = _get_client()
+        search_resp = client.get(NORTH_DATA_BASE_URL, params={"query": company_name})
+        search_resp.raise_for_status()
+        search_soup = BeautifulSoup(search_resp.text, "html.parser")
+
+        detail_href = None
+        for link in search_soup.find_all("a", href=True):
+            href = link.get("href", "")
+            if not href.startswith("/") or href.startswith("/_"):
+                continue
+            if href.count("/") < 2:
+                continue
+            detail_href = href
+            break
+
+        if not detail_href:
+            return None
+
+        detail_url = f"{NORTH_DATA_BASE_URL}{detail_href}"
+        detail_resp = client.get(detail_url)
+        detail_resp.raise_for_status()
+        detail_soup = BeautifulSoup(detail_resp.text, "html.parser")
+
+        registry_number = None
+        title = detail_soup.title.get_text(strip=True) if detail_soup.title else ""
+        registry_match = re.search(r"(HR[AB]\s*\d+\s*[A-Z]?)", title)
+        if registry_match:
+            registry_number = registry_match.group(1)
+
+        sector = None
+        for script in detail_soup.find_all("script", type="application/ld+json"):
+            try:
+                structured = json.loads(script.get_text())
+            except json.JSONDecodeError:
+                continue
+            if structured.get("@type") == "BreadcrumbList":
+                for item in structured.get("itemListElement", []):
+                    name = item.get("item", {}).get("name")
+                    if name and name != "Firmen":
+                        sector = name
+                        break
+            if sector:
+                break
+
+        if not registry_number and not sector:
+            return None
+
+        return {
+            "registry_number": registry_number,
+            "sector": sector,
+            "source": "north_data",
+            "source_url": detail_url,
+        }
+    except Exception as exc:
+        logger.warning("North Data lookup failed for '%s': %s", company_name, exc)
+        return None
+
+
+def _resolve_wikidata_entity_label(entity_id: str) -> str | None:
+    """Resolve a Wikidata entity label in German or English."""
+    client = _get_client()
+    resp = client.get(
+        WIKIDATA_API_URL,
+        params={
+            "action": "wbgetentities",
+            "ids": entity_id,
+            "props": "labels",
+            "languages": "de|en",
+            "format": "json",
+        },
+    )
+    resp.raise_for_status()
+    entity = resp.json().get("entities", {}).get(entity_id, {})
+    labels = entity.get("labels", {})
+    return labels.get("de", {}).get("value") or labels.get("en", {}).get("value")
+
+
+def lookup_wikidata(company_name: str) -> dict[str, Any] | None:
+    """Search Wikidata for public website and industry metadata."""
+    try:
+        client = _get_client()
+        search_resp = client.get(
+            WIKIDATA_API_URL,
+            params={
+                "action": "wbsearchentities",
+                "search": company_name,
+                "language": "de",
+                "type": "item",
+                "limit": 1,
+                "format": "json",
+            },
+        )
+        search_resp.raise_for_status()
+        search_results = search_resp.json().get("search", [])
+        if not search_results:
+            return None
+
+        entity_id = search_results[0].get("id")
+        if not entity_id:
+            return None
+
+        entity_resp = client.get(
+            WIKIDATA_API_URL,
+            params={
+                "action": "wbgetentities",
+                "ids": entity_id,
+                "props": "claims",
+                "format": "json",
+            },
+        )
+        entity_resp.raise_for_status()
+        claims = (
+            entity_resp.json().get("entities", {}).get(entity_id, {}).get("claims", {})
+        )
+
+        website_url = None
+        if "P856" in claims:
+            website_claim = claims["P856"][0]
+            website_url = (
+                website_claim.get("mainsnak", {})
+                .get("datavalue", {})
+                .get("value")
+            )
+
+        sector = None
+        if "P452" in claims:
+            industry_claim = claims["P452"][0]
+            industry_value = (
+                industry_claim.get("mainsnak", {})
+                .get("datavalue", {})
+                .get("value", {})
+            )
+            industry_entity_id = industry_value.get("id")
+            if industry_entity_id:
+                sector = _resolve_wikidata_entity_label(industry_entity_id)
+
+        if not website_url and not sector:
+            return None
+
+        return {
+            "website_url": website_url,
+            "sector": sector,
+            "source": "wikidata",
+            "source_url": f"https://www.wikidata.org/wiki/{entity_id}",
+        }
+    except Exception as exc:
+        logger.warning("Wikidata lookup failed for '%s': %s", company_name, exc)
+        return None
+
+
 # Default registry order. New sources should be added here or via register_enrichment_source.
 register_enrichment_source("bundesanzeiger", lookup_bundesanzeiger)
 register_enrichment_source("github", lookup_github)
 register_enrichment_source("website", lookup_website)
 register_enrichment_source("handelsregister", lookup_handelsregister)
+register_enrichment_source("north_data", lookup_north_data)
+register_enrichment_source("wikidata", lookup_wikidata)
 
 
 # ---------------------------------------------------------------------------
@@ -608,6 +767,10 @@ def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
             if ts:
                 tech_stack = ", ".join(ts)
 
+        if src_name == "wikidata":
+            website_url = src.get("website_url") or website_url
+            sector = src.get("sector") or sector
+
         if src_name == "github":
             github_org = src.get("org_name")
             ts = src.get("language")
@@ -621,6 +784,10 @@ def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
             reports = src.get("annual_reports")
             if reports and not funding_info:
                 funding_info = f"Reports: {', '.join(reports)}"
+
+        if src_name == "north_data":
+            sector = src.get("sector") or sector
+            registry_number = src.get("registry_number") or registry_number
 
     return {
         "sector": sector,
