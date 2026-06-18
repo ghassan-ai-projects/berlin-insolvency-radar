@@ -37,3 +37,58 @@ def test_risk_review_agent_requires_api_key():
     finally:
         if original_key:
             os.environ["DEEPSEEK_API_KEY"] = original_key
+
+
+def test_extraction_agent_raises_classified_runtime_error_on_model_timeout(
+    monkeypatch,
+):
+    original_key = os.environ.get("DEEPSEEK_API_KEY")
+    os.environ["DEEPSEEK_API_KEY"] = "test-key"
+
+    class FakeChatOpenAI:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def invoke(self, *_args, **_kwargs):
+            raise TimeoutError("model timed out")
+
+    monkeypatch.setattr("biradar.agents.extraction.ChatOpenAI", FakeChatOpenAI)
+
+    try:
+        with pytest.raises(RuntimeError, match="EXTRACTION_MODEL_TIMEOUT"):
+            extract_filing_facts("Test text", "http://example.com")
+    finally:
+        if original_key is None:
+            os.environ.pop("DEEPSEEK_API_KEY", None)
+        else:
+            os.environ["DEEPSEEK_API_KEY"] = original_key
+
+
+def test_risk_review_agent_raises_classified_runtime_error_on_model_timeout(
+    monkeypatch,
+):
+    original_key = os.environ.get("DEEPSEEK_API_KEY")
+    os.environ["DEEPSEEK_API_KEY"] = "test-key"
+
+    class FakeChatOpenAI:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def invoke(self, *_args, **_kwargs):
+            raise TimeoutError("model timed out")
+
+    monkeypatch.setattr("biradar.agents.risk_review.ChatOpenAI", FakeChatOpenAI)
+
+    try:
+        with pytest.raises(RuntimeError, match="RISK_REVIEW_MODEL_TIMEOUT"):
+            review_candidate_risk(
+                {"company_name": "Test GmbH", "status": "review_ready"},
+                {"company_name": "Test GmbH", "legal_form": "GmbH"},
+                {"sector": "Tech"},
+                "Good opportunity.",
+            )
+    finally:
+        if original_key is None:
+            os.environ.pop("DEEPSEEK_API_KEY", None)
+        else:
+            os.environ["DEEPSEEK_API_KEY"] = original_key

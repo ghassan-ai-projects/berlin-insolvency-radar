@@ -95,6 +95,29 @@ def build_parser() -> argparse.ArgumentParser:
         "pipeline-check",
         help="Run fixture-backed validation with deterministic stubs against a temporary DuckDB.",
     )
+    live_portal_parser = subparsers.add_parser(
+        "live-smoke-portal",
+        help="Run a live portal acquisition smoke test without executing the LLM-dependent workflow.",
+    )
+    live_portal_parser.add_argument("--start-date", type=str, required=True)
+    live_portal_parser.add_argument("--end-date", type=str, required=True)
+    live_portal_parser.add_argument("--max-records", type=int, default=10)
+
+    live_stubbed_parser = subparsers.add_parser(
+        "live-smoke-stubbed",
+        help="Run the live portal path with deterministic stubbed extraction/review/enrichment.",
+    )
+    live_stubbed_parser.add_argument("--start-date", type=str, required=True)
+    live_stubbed_parser.add_argument("--end-date", type=str, required=True)
+    live_stubbed_parser.add_argument("--max-records", type=int, default=10)
+
+    live_full_parser = subparsers.add_parser(
+        "live-smoke-full",
+        help="Run the full live portal + live model path with a capped record count.",
+    )
+    live_full_parser.add_argument("--start-date", type=str, required=True)
+    live_full_parser.add_argument("--end-date", type=str, required=True)
+    live_full_parser.add_argument("--max-records", type=int, default=3)
 
     return parser
 
@@ -160,9 +183,38 @@ def main() -> None:
             print(result)
             return
 
+        if command in {"live-smoke-portal", "live-smoke-stubbed", "live-smoke-full"}:
+            from datetime import date
+
+            start_date = date.fromisoformat(args.start_date)
+            end_date = date.fromisoformat(args.end_date)
+            run_mode = {
+                "live-smoke-portal": "portal_only",
+                "live-smoke-stubbed": "portal_with_stubs",
+                "live-smoke-full": "full_live",
+            }[command]
+            result = run_pipeline(
+                start_date=start_date,
+                end_date=end_date,
+                dry_run=False,
+                thread_id=f"{command}_{start_date}_{end_date}",
+                max_records=args.max_records,
+                run_mode=run_mode,
+            )
+            print(json_safe(result))
+            if result["status"] != "success":
+                sys.exit(1)
+            return
+
     except Exception as e:
         print(f"Startup error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def json_safe(payload: object) -> str:
+    import json
+
+    return json.dumps(payload, indent=2, default=str)
 
 
 async def run_mcp_server(config_dir: Path, db_path: Path) -> None:

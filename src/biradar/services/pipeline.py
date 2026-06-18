@@ -7,7 +7,8 @@ import uuid
 from asyncio import run as asyncio_run
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from time import perf_counter
+from typing import Any, Literal
 
 from biradar.agents.extraction import ExtractionResult
 from biradar.agents.risk_review import RiskReviewResult
@@ -30,6 +31,54 @@ from biradar.storage.repository import (
 )
 
 logger = get_logger(__name__)
+
+RunMode = Literal["full_live", "portal_only", "portal_with_stubs"]
+
+
+def _start_stage(stage_report: dict[str, dict[str, Any]], name: str) -> float:
+    stage_report[name] = {
+        "status": "running",
+        "started_at": datetime.now(UTC).isoformat(),
+    }
+    return perf_counter()
+
+
+def _finish_stage(
+    stage_report: dict[str, dict[str, Any]],
+    name: str,
+    started_at: float,
+    status: str,
+    **details: Any,
+) -> None:
+    stage_report[name] = {
+        **stage_report.get(name, {}),
+        "status": status,
+        "completed_at": datetime.now(UTC).isoformat(),
+        "duration_seconds": round(perf_counter() - started_at, 3),
+        **details,
+    }
+
+
+def _fail_result(
+    stage_report: dict[str, dict[str, Any]],
+    stage_name: str,
+    started_at: float,
+    error: str,
+    errors: list[str] | None = None,
+) -> dict[str, Any]:
+    _finish_stage(
+        stage_report,
+        stage_name,
+        started_at,
+        "failed",
+        error=error,
+    )
+    return {
+        "status": "failed",
+        "error": error,
+        "errors": errors or [error],
+        "stage_report": stage_report,
+    }
 
 
 def _load_fixture_records(settings: Any) -> tuple[str, list[dict[str, Any]]]:
@@ -283,6 +332,7 @@ def run_pipeline(
     risk_reviewer: Any | None = None,
     enricher: Any | None = None,
     max_records: int | None = None,
+    run_mode: RunMode = "full_live",
 ) -> dict[str, Any]:
     """Execute the agentic workflow pipeline."""
     logger.info(
@@ -296,6 +346,20 @@ def run_pipeline(
 
     settings = get_settings()
     config = load_config(settings.project_root / "config")
+    resolved_extractor = extractor
+    resolved_risk_reviewer = risk_reviewer
+    resolved_enricher = enricher
+
+    if run_mode == "portal_with_stubs":
+        resolved_extractor = resolved_extractor or _stub_extractor
+        resolved_risk_reviewer = resolved_risk_reviewer or _stub_risk_reviewer
+        resolved_enricher = resolved_enricher or _stub_enricher
+
+    stage_report: dict[str, dict[str, Any]] = {
+        "fetch": {"status": "pending"},
+        "workflow": {"status": "pending"},
+        "persist": {"status": "pending"},
+    }
     target_db_path = Path(db_path) if db_path else settings.data_dir / "radar.duckdb"
     official_source_cfg = config.sources.get("official_insolvency_berlin")
     effective_source_mode = source_mode or (
@@ -312,6 +376,7 @@ def run_pipeline(
     checkpoint_mgr = CheckpointManager(checkpoint_db_path)
 
     try:
+        fetch_started_at = _start_stage(stage_report, "fetch")
         if dry_run:
             source_run_id, raw_records = _load_fixture_records(settings)
         elif effective_source_mode == "fixture":
@@ -331,11 +396,13 @@ def run_pipeline(
                 dry_run=False,
             )
             if fetch_result["status"] != "completed":
-                return {
-                    "status": "failed",
-                    "error": "Official portal fixture acquisition failed",
-                    "errors": fetch_result.get("errors", []),
-                }
+                return _fail_result(
+                    stage_report,
+                    "fetch",
+                    fetch_started_at,
+                    "Official portal fixture acquisition failed",
+                    fetch_result.get("errors", []),
+                )
             source_run_id = fetch_result["source_run_id"]
             raw_records = fetch_result.get("records", [])
         else:
@@ -363,11 +430,13 @@ def run_pipeline(
                         )
                     )
                     if fetch_result["status"] != "completed":
-                        return {
-                            "status": "failed",
-                            "error": "Official portal acquisition failed",
-                            "errors": fetch_result.get("errors", []),
-                        }
+                        return _fail_result(
+                            stage_report,
+                            "fetch",
+                            fetch_started_at,
+                            "Official portal acquisition failed",
+                            fetch_result.get("errors", []),
+                        )
                     source_run_id = fetch_result["source_run_id"]
                     raw_records = fetch_result.get("records", [])
             else:
@@ -379,13 +448,24 @@ def run_pipeline(
                     )
                 )
                 if fetch_result["status"] != "completed":
-                    return {
-                        "status": "failed",
-                        "error": "Official portal acquisition failed",
-                        "errors": fetch_result.get("errors", []),
-                    }
+                    return _fail_result(
+                        stage_report,
+                        "fetch",
+                        fetch_started_at,
+                        "Official portal acquisition failed",
+                        fetch_result.get("errors", []),
+                    )
                 source_run_id = fetch_result["source_run_id"]
                 raw_records = fetch_result.get("records", [])
+
+        _finish_stage(
+            stage_report,
+            "fetch",
+            fetch_started_at,
+            "success",
+            record_count=len(raw_records),
+            source_run_id=source_run_id,
+        )
 
         if not dry_run:
             AuditRepository(db).log_event(
@@ -399,6 +479,7 @@ def run_pipeline(
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "source_mode": effective_source_mode,
+                    "run_mode": run_mode,
                 },
                 result_data={"raw_records": len(raw_records)},
             )
@@ -406,9 +487,9 @@ def run_pipeline(
         _reset_disabled_sources()
 
         workflow = build_pipeline_workflow(
-            extractor=extractor,
-            risk_reviewer=risk_reviewer,
-            enricher=enricher,
+            extractor=resolved_extractor,
+            risk_reviewer=resolved_risk_reviewer,
+            enricher=resolved_enricher,
         ).compile(checkpointer=checkpoint_mgr.saver_instance)
 
         # Collect raw_record_ids that already have linked candidates in the DB.
@@ -432,6 +513,25 @@ def run_pipeline(
             logger.info(f"Capping raw records from {len(raw_records)} to {max_records}")
             raw_records = raw_records[:max_records]
 
+        if run_mode == "portal_only":
+            stage_report["workflow"] = {
+                "status": "skipped",
+                "reason": "run_mode=portal_only",
+            }
+            stage_report["persist"] = {
+                "status": "skipped",
+                "reason": "run_mode=portal_only",
+            }
+            return {
+                "status": "success",
+                "current_step": "fetched",
+                "export_path": None,
+                "issue_id": None,
+                "warnings": [],
+                "errors": [],
+                "stage_report": stage_report,
+            }
+
         initial_state = {
             "source_run_id": source_run_id,
             "raw_records": raw_records,
@@ -454,10 +554,34 @@ def run_pipeline(
                 "dry_run": dry_run,
             }
         }
+        workflow_started_at = _start_stage(stage_report, "workflow")
         final_state = workflow.invoke(initial_state, invocation_config)
+        workflow_status = "failed" if final_state.get("errors") else "success"
+        _finish_stage(
+            stage_report,
+            "workflow",
+            workflow_started_at,
+            workflow_status,
+            current_step=final_state.get("current_step"),
+            warning_count=len(final_state.get("warnings", [])),
+            error_count=len(final_state.get("errors", [])),
+        )
         issue_id = None
         if not dry_run:
+            persist_started_at = _start_stage(stage_report, "persist")
             issue_id = _persist_results(db, final_state, final_state.get("export_path"))
+            _finish_stage(
+                stage_report,
+                "persist",
+                persist_started_at,
+                "success",
+                issue_id=issue_id,
+            )
+        else:
+            stage_report["persist"] = {
+                "status": "skipped",
+                "reason": "dry_run=True",
+            }
 
         logger.info("Pipeline completed successfully")
         return {
@@ -467,10 +591,20 @@ def run_pipeline(
             "issue_id": issue_id,
             "warnings": final_state.get("warnings", []),
             "errors": final_state.get("errors", []),
+            "stage_report": stage_report,
         }
     except Exception as exc:
         logger.error("Pipeline failed", exc_info=True)
-        return {"status": "failed", "error": str(exc)}
+        stage_report["workflow"] = {
+            **stage_report.get("workflow", {}),
+            "status": "failed",
+            "error": str(exc),
+        }
+        return {
+            "status": "failed",
+            "error": str(exc),
+            "stage_report": stage_report,
+        }
     finally:
         checkpoint_mgr.close()
         db.close()

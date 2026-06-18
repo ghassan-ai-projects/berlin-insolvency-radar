@@ -207,3 +207,36 @@ def test_pipeline_risk_review_retry_does_not_reprocess():
     assert any(c > 1 for c in review_call_counts.values()), (
         f"Expected at least one risk review retry, got counts: {dict(review_call_counts)}"
     )
+
+
+def test_pipeline_portal_only_mode_returns_stage_report():
+    result = run_pipeline(
+        start_date=date(2026, 6, 10),
+        end_date=date(2026, 6, 16),
+        dry_run=True,
+        thread_id="portal_only_test",
+        run_mode="portal_only",
+    )
+
+    assert result["status"] == "success"
+    assert result["current_step"] == "fetched"
+    assert result["export_path"] is None
+    assert "stage_report" in result
+    assert result["stage_report"]["fetch"]["status"] == "success"
+    assert result["stage_report"]["workflow"]["status"] == "skipped"
+
+
+def test_pipeline_portal_with_stubs_mode_executes_full_flow():
+    result = run_pipeline(
+        start_date=date(2026, 6, 10),
+        end_date=date(2026, 6, 16),
+        dry_run=True,
+        thread_id="portal_with_stubs_test",
+        run_mode="portal_with_stubs",
+    )
+
+    assert result["status"] == "success"
+    assert result["current_step"] == "completed"
+    assert result["export_path"] is not None
+    assert result["stage_report"]["fetch"]["status"] == "success"
+    assert result["stage_report"]["workflow"]["status"] == "success"

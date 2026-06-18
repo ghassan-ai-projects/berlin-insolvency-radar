@@ -46,6 +46,7 @@ def review_candidate_risk(
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+    timeout_seconds = float(os.environ.get("DEEPSEEK_TIMEOUT_SECONDS", "30"))
 
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY is required for risk review")
@@ -56,6 +57,7 @@ def review_candidate_risk(
             openai_api_base=api_base,
             model=model_name,
             temperature=0.0,
+            timeout=timeout_seconds,
         )
 
         review_context = (
@@ -84,15 +86,12 @@ def review_candidate_risk(
         )
 
         response = llm.invoke(full_prompt.format(context=review_context))
-        content = (
-            response.content if hasattr(response, "content") else str(response)
-        )
+        content = response.content if hasattr(response, "content") else str(response)
         parsed = robust_json_parse(content)
         return RiskReviewResult(**parsed)
-    except Exception as e:
-        logger.error(f"Risk review failed: {e}")
-        return RiskReviewResult(
-            passed_review=False,
-            rejection_reasons=[f"Review system error: {e!s}"],
-            confidence_in_review=0.0,
-        )
+    except TimeoutError as exc:
+        logger.error("Risk review model timeout: %s", exc)
+        raise RuntimeError("RISK_REVIEW_MODEL_TIMEOUT") from exc
+    except Exception as exc:
+        logger.error("Risk review failed: %s", exc)
+        raise RuntimeError("RISK_REVIEW_MODEL_ERROR") from exc
