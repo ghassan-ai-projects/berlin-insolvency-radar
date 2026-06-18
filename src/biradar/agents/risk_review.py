@@ -1,12 +1,11 @@
 """Risk Review Agent for compliance and legal gatekeeping."""
 
 import json
-import os
 from typing import Any
 
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from biradar.agents.llm import build_chat_llm, resolve_llm_config
 from biradar.observability.logging import get_logger
 from biradar.utils.prompts import load_prompt, robust_json_parse
 
@@ -43,22 +42,10 @@ def review_candidate_risk(
     Requires a live DeepSeek configuration. Callers that need deterministic local
     verification should inject a stub reviewer instead of relying on runtime mocks.
     """
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
-    model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    timeout_seconds = float(os.environ.get("DEEPSEEK_TIMEOUT_SECONDS", "30"))
-
-    if not api_key:
-        raise RuntimeError("DEEPSEEK_API_KEY is required for risk review")
+    resolve_llm_config()
 
     try:
-        llm = ChatOpenAI(
-            openai_api_key=api_key,
-            openai_api_base=api_base,
-            model=model_name,
-            temperature=0.0,
-            timeout=timeout_seconds,
-        )
+        llm = build_chat_llm()
 
         review_context = (
             "<candidate_data>\n"

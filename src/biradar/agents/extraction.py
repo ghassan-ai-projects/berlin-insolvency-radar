@@ -1,10 +1,8 @@
 """Extraction Agent for structured filing facts."""
 
-import os
-
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from biradar.agents.llm import build_chat_llm, resolve_llm_config
 from biradar.observability.logging import get_logger
 from biradar.utils.prompts import load_prompt, robust_json_parse
 
@@ -32,22 +30,10 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
     Requires a live DeepSeek configuration. Callers that need deterministic local
     verification should inject a stub extractor instead of relying on runtime mocks.
     """
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
-    model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    timeout_seconds = float(os.environ.get("DEEPSEEK_TIMEOUT_SECONDS", "30"))
-
-    if not api_key:
-        raise RuntimeError("DEEPSEEK_API_KEY is required for filing extraction")
+    resolve_llm_config()
 
     try:
-        llm = ChatOpenAI(
-            openai_api_key=api_key,
-            openai_api_base=api_base,
-            model=model_name,
-            temperature=0.0,
-            timeout=timeout_seconds,
-        )
+        llm = build_chat_llm()
 
         base_prompt = load_prompt("extraction")
         safe_prompt = base_prompt.replace("{", "{{").replace("}", "}}")
