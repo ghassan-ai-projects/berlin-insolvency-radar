@@ -1,12 +1,12 @@
 """Unit tests for multi-source enrichment with mocked HTTP."""
 
 import socket
-from unittest.mock import patch
 
 import pytest
 
 from biradar.sources.enrichment import (
     EnrichmentResult,
+    EnrichmentSourceDefinition,
     _aggregate_result,
     _build_company_slug,
     _dns_resolves,
@@ -46,21 +46,21 @@ class TestEnrichCandidateLiveMode:
     def test_all_sources_succeed(self, monkeypatch):
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
-            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+            lambda: type(
+                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+            )(),
         )
 
-        with (
-            patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
-            patch("biradar.sources.enrichment.lookup_github") as mock_gh,
-            patch("biradar.sources.enrichment.lookup_website") as mock_web,
-        ):
-            mock_b.return_value = {
+        def mock_b(_company_name: str):
+            return {
                 "annual_reports": ["Jahresabschluss 2025"],
                 "balance_summary": "Balance sheet data available",
                 "revenue_estimate": "1.2 Mio. EUR",
                 "source": "bundesanzeiger",
             }
-            mock_gh.return_value = {
+
+        def mock_gh(_company_name: str):
+            return {
                 "org_name": "test-gmbh",
                 "org_description": "A test company",
                 "public_repos": 5,
@@ -69,7 +69,9 @@ class TestEnrichCandidateLiveMode:
                 "language": ["Python", "TypeScript"],
                 "source": "github",
             }
-            mock_web.return_value = {
+
+        def mock_web(_company_name: str):
+            return {
                 "url": "https://test-gmbh.de",
                 "title": "Test GmbH - Home",
                 "description": "Innovative testing solutions",
@@ -77,8 +79,16 @@ class TestEnrichCandidateLiveMode:
                 "status_code": 200,
                 "source": "website",
             }
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._resolve_enrichment_sources",
+            lambda: [
+                EnrichmentSourceDefinition("bundesanzeiger", mock_b),
+                EnrichmentSourceDefinition("github", mock_gh),
+                EnrichmentSourceDefinition("website", mock_web),
+            ],
+        )
 
-            result = enrich_candidate("Test GmbH")
+        result = enrich_candidate("Test GmbH")
 
         assert result.enriched is True
         assert len(result.sources) == 3
@@ -92,17 +102,19 @@ class TestEnrichCandidateLiveMode:
     def test_source_failure_isolation(self, monkeypatch):
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
-            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+            lambda: type(
+                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+            )(),
         )
 
-        with (
-            patch("biradar.sources.enrichment.lookup_bundesanzeiger") as mock_b,
-            patch("biradar.sources.enrichment.lookup_github") as mock_gh,
-            patch("biradar.sources.enrichment.lookup_website") as mock_web,
-        ):
-            mock_b.side_effect = RuntimeError("Connection error")
-            mock_gh.return_value = None
-            mock_web.return_value = {
+        def failing_bundesanzeiger(_company_name: str):
+            raise RuntimeError("Connection error")
+
+        def empty_github(_company_name: str):
+            return None
+
+        def website_result(_company_name: str):
+            return {
                 "url": "https://example.de",
                 "title": "Example",
                 "description": "",
@@ -111,7 +123,16 @@ class TestEnrichCandidateLiveMode:
                 "source": "website",
             }
 
-            result = enrich_candidate("Example AG")
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._resolve_enrichment_sources",
+            lambda: [
+                EnrichmentSourceDefinition("bundesanzeiger", failing_bundesanzeiger),
+                EnrichmentSourceDefinition("github", empty_github),
+                EnrichmentSourceDefinition("website", website_result),
+            ],
+        )
+
+        result = enrich_candidate("Example AG")
 
         assert result.enriched is True
         assert len(result.sources) == 1
@@ -121,21 +142,40 @@ class TestEnrichCandidateLiveMode:
     def test_no_sources_return_data(self, monkeypatch):
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
-            lambda: type("Cfg", (), {"enabled": True, "delay_between_sources": 0.0})(),
+            lambda: type(
+                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+            )(),
+        )
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._resolve_enrichment_sources",
+            lambda: [
+                EnrichmentSourceDefinition("bundesanzeiger", lambda _company_name: None),
+                EnrichmentSourceDefinition("github", lambda _company_name: None),
+                EnrichmentSourceDefinition("website", lambda _company_name: None),
+            ],
         )
 
-        with (
-            patch(
-                "biradar.sources.enrichment.lookup_bundesanzeiger", return_value=None
-            ),
-            patch("biradar.sources.enrichment.lookup_github", return_value=None),
-            patch("biradar.sources.enrichment.lookup_website", return_value=None),
-        ):
-            result = enrich_candidate("Unknown GmbH")
+        result = enrich_candidate("Unknown GmbH")
 
         assert result.enriched is False
         assert len(result.sources) == 0
         assert len(result.errors) == 3
+
+    def test_returns_clear_error_when_no_sources_enabled(self, monkeypatch):
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._get_enrichment_config",
+            lambda: type(
+                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+            )(),
+        )
+        monkeypatch.setattr(
+            "biradar.sources.enrichment._resolve_enrichment_sources", list
+        )
+
+        result = enrich_candidate("Unknown GmbH")
+
+        assert result.enriched is False
+        assert result.errors == ["No enrichment sources are enabled"]
 
 
 class TestAggregateResult:

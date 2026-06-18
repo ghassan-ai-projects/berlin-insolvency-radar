@@ -58,6 +58,7 @@ class EnrichmentConfig(BaseModel):
     enabled: bool = False
     timeout_seconds: float = Field(default=10.0, gt=0)
     delay_between_sources: float = Field(default=0.3, ge=0.0)
+    sources: dict[str, bool] = Field(default_factory=dict)
 
 
 class AppConfig(BaseModel):

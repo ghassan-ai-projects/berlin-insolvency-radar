@@ -19,6 +19,8 @@ import re
 import socket
 import ssl
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
@@ -90,16 +92,42 @@ class EnrichmentResult(BaseModel):
     company_status: str | None = None
 
 
+EnrichmentLookupFn = Callable[[str], dict[str, Any] | None]
+
+
+@dataclass(frozen=True)
+class EnrichmentSourceDefinition:
+    """Registered enrichment source metadata."""
+
+    name: str
+    lookup_fn: EnrichmentLookupFn
+
+
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
 _http_client: httpx.Client | None = None
+_enrichment_source_registry: dict[str, EnrichmentSourceDefinition] = {}
 
 
 def _reset_disabled_sources() -> None:
     """Clear the disabled-sources set (for test resets)."""
     _disabled_sources.clear()
+
+
+def register_enrichment_source(
+    name: str, lookup_fn: EnrichmentLookupFn
+) -> EnrichmentSourceDefinition:
+    """Register an enrichment lookup in execution order."""
+    source = EnrichmentSourceDefinition(name=name, lookup_fn=lookup_fn)
+    _enrichment_source_registry[name] = source
+    return source
+
+
+def get_registered_enrichment_sources() -> list[EnrichmentSourceDefinition]:
+    """Return the registered enrichment sources in execution order."""
+    return list(_enrichment_source_registry.values())
 
 
 def _get_client() -> httpx.Client:
@@ -514,6 +542,13 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
         return None
 
 
+# Default registry order. New sources should be added here or via register_enrichment_source.
+register_enrichment_source("bundesanzeiger", lookup_bundesanzeiger)
+register_enrichment_source("github", lookup_github)
+register_enrichment_source("website", lookup_website)
+register_enrichment_source("handelsregister", lookup_handelsregister)
+
+
 # ---------------------------------------------------------------------------
 # Main enricher
 # ---------------------------------------------------------------------------
@@ -523,6 +558,22 @@ def lookup_handelsregister(company_name: str) -> dict[str, Any] | None:
 def _get_enrichment_config():
     settings = get_settings()
     return load_config(settings.project_root / "config").enrichment
+
+
+def _is_source_enabled(source_name: str, enrichment_config: Any) -> bool:
+    """Resolve whether a registered source is enabled in config."""
+    source_flags = getattr(enrichment_config, "sources", {}) or {}
+    return bool(source_flags.get(source_name, True))
+
+
+def _resolve_enrichment_sources() -> list[EnrichmentSourceDefinition]:
+    """Resolve registered sources after applying config-based enablement."""
+    enrichment_config = _get_enrichment_config()
+    return [
+        source
+        for source in get_registered_enrichment_sources()
+        if _is_source_enabled(source.name, enrichment_config)
+    ]
 
 
 def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -608,13 +659,16 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
     errors: list[str] = []
     sources_results: list[dict[str, Any]] = []
 
-    source_defs: list[tuple[str, Any]] = [
-        ("bundesanzeiger", lookup_bundesanzeiger),
-        ("github", lookup_github),
-        ("website", lookup_website),
-    ]
+    source_defs = _resolve_enrichment_sources()
+    if not source_defs:
+        return EnrichmentResult(
+            company_name=company_name,
+            errors=["No enrichment sources are enabled"],
+            enriched=False,
+        )
 
-    for idx, (source_name, lookup_fn) in enumerate(source_defs):
+    for idx, source in enumerate(source_defs):
+        source_name = source.name
         if source_name in _disabled_sources:
             errors.append(f"{source_name}: skipped (disabled after terminal error)")
             continue
@@ -624,7 +678,7 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
 
         try:
             logger.debug("Enriching '%s' via %s ...", company_name, source_name)
-            result = lookup_fn(company_name)
+            result = source.lookup_fn(company_name)
             if result is not None:
                 sources_results.append(result)
             else:
