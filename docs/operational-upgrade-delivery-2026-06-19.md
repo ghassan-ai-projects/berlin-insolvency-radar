@@ -1,6 +1,6 @@
 # Operational Upgrade Delivery
 
-**Date:** 2026-06-19  
+**Date:** 2026-06-19
 **Scope:** parser hardening, model decoupling, generic enrichment, new live sources, and operational validation
 
 ## What Was Completed

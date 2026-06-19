@@ -1,6 +1,6 @@
 # Extraction And Compliance Eval Set
 
-**Date:** 2026-06-19  
+**Date:** 2026-06-19
 **Purpose:** Add a stable, fixture-backed quality harness for extraction/compliance changes
 
 ## Why This Exists

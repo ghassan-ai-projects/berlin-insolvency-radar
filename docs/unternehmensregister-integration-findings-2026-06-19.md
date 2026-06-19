@@ -1,6 +1,6 @@
 # Unternehmensregister Integration Findings
 
-**Date:** 2026-06-19  
+**Date:** 2026-06-19
 **Status:** Live HTTP token adapter implemented and validated
 
 ## What Was Verified Live

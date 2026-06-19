@@ -36,8 +36,8 @@ That is workable, but too fragile and too centralized in one module.
 
 ### 1. Unternehmensregister
 
-**Link:** https://www.unternehmensregister.de/de  
-**Type:** Official central company-data portal  
+**Link:** https://www.unternehmensregister.de/de
+**Type:** Official central company-data portal
 **Best use:** Secondary acquisition, corroboration, enrichment, register documents
 
 Why it matters:
@@ -70,8 +70,8 @@ Integration difficulty:
 
 ### 2. Handelsregister
 
-**Link:** https://www.handelsregister.de/rp_web/welcome.xhtml  
-**Type:** Official common register portal of the German federal states  
+**Link:** https://www.handelsregister.de/rp_web/welcome.xhtml
+**Type:** Official common register portal of the German federal states
 **Best use:** Company identity, register announcements, liquidation/status changes
 
 Why it matters:
@@ -97,8 +97,8 @@ Integration difficulty:
 
 ### 3. OpenCorporates API
 
-**Link:** https://api.opencorporates.com/documentation/API-Reference  
-**Type:** Commercial/open API over company-register data  
+**Link:** https://api.opencorporates.com/documentation/API-Reference
+**Type:** Commercial/open API over company-register data
 **Best use:** Normalization, company matching, provenance-rich enrichment
 
 Why it matters:
@@ -130,8 +130,8 @@ Important limitation:
 
 ### 4. BRIS / EU Business Register Search
 
-**Link:** https://e-justice.europa.eu/topics/registers-business-insolvency-land/business-registers-search-company-eu_en  
-**Type:** Official EU business-register interconnection search  
+**Link:** https://e-justice.europa.eu/topics/registers-business-insolvency-land/business-registers-search-company-eu_en
+**Type:** Official EU business-register interconnection search
 **Best use:** Cross-border company matching and identity fallback
 
 Why it matters:
@@ -158,14 +158,14 @@ Integration difficulty:
 
 ### Insolvenzbekanntmachungen
 
-**Link:** https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf  
+**Link:** https://neu.insolvenzbekanntmachungen.de/ap/suche.jsf
 Keep it as the primary acquisition source, because it is still the authoritative live insolvency publication path.
 
 But do not let it remain the only serious source.
 
 ### Bundesanzeiger
 
-**Link:** https://www.bundesanzeiger.de/pub/en/start  
+**Link:** https://www.bundesanzeiger.de/pub/en/start
 Keep it as an enrichment/corroboration source for legally relevant company publications, not as the primary insolvency feed.
 
 ### Company Website
