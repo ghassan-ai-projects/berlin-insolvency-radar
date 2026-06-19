@@ -246,19 +246,26 @@ def test_build_enrichment_claims_uses_source_url_fallback():
         enriched=True,
         sources=[
             {
-                "source": "north_data",
-                "source_url": "https://www.northdata.de/example",
+                "source": "unternehmensregister",
+                "source_url": "https://www.unternehmensregister.de/de/registerinformationen",
                 "registry_number": "HRB 12345",
+                "euid": "DEF1103R.HRB12345B",
+                "last_update": "2026-05-22",
             }
         ],
     )
 
     claims = _build_enrichment_claims(result)
 
-    assert len(claims) == 1
-    assert claims[0]["field"] == "registry_number"
-    assert claims[0]["source_url"] == "https://www.northdata.de/example"
-    assert claims[0]["source_provider"] == "north_data"
+    assert [claim["field"] for claim in claims] == [
+        "registry_number",
+        "euid",
+        "last_update",
+    ]
+    assert {claim["source_provider"] for claim in claims} == {"unternehmensregister"}
+    assert {claim["source_url"] for claim in claims} == {
+        "https://www.unternehmensregister.de/de/registerinformationen"
+    }
 
 
 def test_risk_review_quarantines_unsupported_non_inference_claims():

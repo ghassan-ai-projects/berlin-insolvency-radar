@@ -1,11 +1,11 @@
 # Unternehmensregister Integration Findings
 
 **Date:** 2026-06-19  
-**Status:** Live source verified manually, runtime adapter still pending
+**Status:** Live HTTP token adapter implemented and validated
 
 ## What Was Verified Live
 
-A real browser-driven lookup against `unternehmensregister.de` was completed for `Zalando SE`.
+Real lookups against `unternehmensregister.de` were completed for `Zalando SE`.
 
 Observed live path:
 
@@ -21,40 +21,58 @@ Observed live path:
 
 This confirms the source is operationally valuable and exposes exactly the kind of legal identity data BIRADAR needs.
 
-## Why It Was Not Added As A Plain HTTP Adapter Yet
+## Runtime HTTP Contract
 
 The public site is a Next.js application with client-side navigation and a generated `searchToken`.
 
-What was observed:
+The implemented adapter uses the same public flow as the frontend:
 
-- the HTML form is public and searchable
-- direct browser navigation produces the real result table
-- plain `httpx` fetches of the visible URLs do not expose the hydrated result rows
-- the search flow emits tokenized result URLs only after the browser-driven path
+1. `GET https://www.unternehmensregister.de/api/search-token`
+2. `GET https://www.unternehmensregister.de/de/registerPortal`
+3. Query parameters:
+   - `companyName=<candidate name>`
+   - `formType=REGISTER_INFORMATION`
+   - `searchToken=<token from step 1>`
+4. Follow redirects to `/de/registerinformationen`.
+5. Extract the embedded `companies` array from the rendered Next/RSC payload.
 
-Engineering conclusion:
+Live HTTP validation on 2026-06-19 returned:
 
-- this is not a normal static HTML scraper target
-- treating it like one would recreate the same fragility we just removed elsewhere
+- company `Zalando SE`
+- location `Berlin`
+- EUID `DEF1103R.HRB158855B`
+- court `Amtsgericht Berlin (Charlottenburg)`
+- register number `HRB 158855`
+- status `active`
+- last update `2026-05-22`
 
-## Recommended Integration Boundary
+## Implemented Boundary
 
-If this source is promoted into production, do it in one of these shapes:
+The adapter is intentionally narrow:
 
-1. Browser-backed adapter with a narrow contract and aggressive caching.
-2. Operator-assisted/manual lookup tool exposed separately from the default enrichment pass.
-3. Dedicated acquisition worker for token/session generation, isolated from the normal fast HTTP source path.
+- source module: `src/biradar/sources/enrichment/unternehmensregister.py`
+- registration: normal enrichment source registry
+- parser: balanced JSON-array extraction from the rendered payload, not table text scraping
+- output fields: `legal_form`, `registry_court`, `registry_number`, `company_status`, `euid`, `last_update`, `location`, `source_url`
+- failure mode: terminal HTTP blocks disable the source for the current run
 
-The wrong choice would be:
+## Operational Risks
 
-- bolting brittle token guessing into the current synchronous HTTP enrichment loop
+- The adapter depends on an undocumented public frontend API.
+- If the Next/RSC payload shape changes, unit tests still pass but live validation can fail.
+- If the token endpoint starts enforcing stronger bot protection, this source should be disabled by config rather than retried aggressively.
+- This adapter should remain enrichment-only; do not use it as the canonical insolvency acquisition source.
 
 ## Current Repo State
 
-The source is now represented in config as a researched adapter candidate:
+The source is now represented as an enabled runtime adapter:
 
 - `config/sources.yaml`
-- `enrichment.sources.unternehmensregister.enabled: false`
-- `integration_status: research_validated_pending_runtime_adapter`
+- `enrichment.sources.unternehmensregister.enabled: true`
+- `integration_status: live_http_token_adapter`
 
-That is deliberate. The product now acknowledges the source explicitly without pretending the implementation is cheaper than it is.
+Validation coverage:
+
+- deterministic unit coverage for payload parsing and field normalization
+- acceptance coverage for config enablement
+- live smoke validation against `Zalando SE`

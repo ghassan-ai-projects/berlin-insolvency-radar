@@ -24,6 +24,9 @@ from biradar.sources.enrichment.runtime import (
     _get_client,
     _get_enrichment_config,
 )
+from biradar.sources.enrichment.unternehmensregister import (
+    lookup_unternehmensregister,
+)
 from biradar.sources.enrichment.website import (
     _build_company_slug,
     _dns_resolves,
@@ -49,6 +52,7 @@ __all__ = [
     "lookup_github",
     "lookup_handelsregister",
     "lookup_north_data",
+    "lookup_unternehmensregister",
     "lookup_website",
     "lookup_wikidata",
     "register_enrichment_source",

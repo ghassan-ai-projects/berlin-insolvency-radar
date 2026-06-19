@@ -84,9 +84,10 @@ enrichment:
     wikidata:
       enabled: true
     unternehmensregister:
-      enabled: false
+      enabled: true
+      timeout_seconds: 10
       params:
-        integration_status: research_validated_pending_runtime_adapter
+        integration_status: live_http_token_adapter
     opencorporates:
       enabled: false
       params:
@@ -99,6 +100,7 @@ enrichment:
 - `sources.<name>.timeout_seconds` — override the shared HTTP timeout for slow or brittle sources
 - `sources.<name>.delay_between_sources` — override inter-source pacing for a single adapter
 - `sources.<name>.params` — carry source-specific metadata or future adapter settings without changing the schema again
+- `unternehmensregister` — uses the public `search-token` flow and extracts register identity fields from the rendered result payload
 
 ## Settings (Programmatic)
 

@@ -11,6 +11,7 @@ from biradar.sources.enrichment import (
     github,  # noqa: F401
     handelsregister,  # noqa: F401
     north_data,  # noqa: F401
+    unternehmensregister,  # noqa: F401
     website,  # noqa: F401
     wikidata,  # noqa: F401
 )
@@ -73,6 +74,15 @@ def _aggregate_result(sources_results: list[dict[str, Any]]) -> dict[str, Any]:
             registry_court = src.get("registry_court") or registry_court
             registry_number = src.get("registry_number") or registry_number
             company_status = src.get("status") or company_status
+
+        if src_name == "unternehmensregister":
+            lf = src.get("legal_form")
+            if lf:
+                legal_form = lf
+                sector = f"Legal form: {lf}"
+            registry_court = src.get("registry_court") or registry_court
+            registry_number = src.get("registry_number") or registry_number
+            company_status = src.get("company_status") or company_status
 
         if src_name == "website":
             website_url = src.get("url")

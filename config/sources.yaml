@@ -37,9 +37,10 @@ enrichment:
     wikidata:
       enabled: true
     unternehmensregister:
-      enabled: false
+      enabled: true
+      timeout_seconds: 10
       params:
-        integration_status: "research_validated_pending_runtime_adapter"
+        integration_status: "live_http_token_adapter"
     opencorporates:
       enabled: false
       params:

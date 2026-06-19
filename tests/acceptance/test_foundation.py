@@ -164,7 +164,7 @@ def test_at_0_5_config_loads_and_validates(config_dir):
     assert config.enrichment.enabled is True
     assert config.enrichment.sources["north_data"].enabled is True
     assert config.enrichment.sources["wikidata"].enabled is True
-    assert config.enrichment.sources["unternehmensregister"].enabled is False
+    assert config.enrichment.sources["unternehmensregister"].enabled is True
 
 
 def test_at_0_6_minimal_langgraph_workflow_runs(container):

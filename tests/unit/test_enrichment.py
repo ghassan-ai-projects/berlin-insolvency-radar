@@ -15,8 +15,10 @@ from biradar.sources.enrichment import (
     _reset_disabled_sources,
     enrich_candidate,
     lookup_north_data,
+    lookup_unternehmensregister,
     lookup_wikidata,
 )
+from biradar.sources.enrichment.unternehmensregister import _extract_register_companies
 
 
 class TestEnrichmentConfig:
@@ -28,7 +30,7 @@ class TestEnrichmentConfig:
 
         assert config.sources["north_data"].enabled is True
         assert config.sources["handelsregister"].timeout_seconds == 5
-        assert config.sources["unternehmensregister"].enabled is False
+        assert config.sources["unternehmensregister"].enabled is True
 
 
 class TestEnrichCandidateModes:
@@ -203,11 +205,11 @@ class TestAggregateResult:
     def test_aggregates_all_sources(self):
         sources = [
             {
-                "source": "handelsregister",
-                "legal_form": "GmbH",
-                "registry_court": "Amtsgericht Berlin",
-                "registry_number": "HRB 123",
-                "status": "active",
+                "source": "unternehmensregister",
+                "legal_form": "SE",
+                "registry_court": "Amtsgericht Berlin (Charlottenburg)",
+                "registry_number": "HRB 158855",
+                "company_status": "active",
             },
             {
                 "source": "website",
@@ -227,9 +229,9 @@ class TestAggregateResult:
             },
         ]
         result = _aggregate_result(sources)
-        assert result["sector"] == "Legal form: GmbH"
-        assert result["legal_form"] == "GmbH"
-        assert result["registry_court"] == "Amtsgericht Berlin"
+        assert result["sector"] == "Legal form: SE"
+        assert result["legal_form"] == "SE"
+        assert result["registry_court"] == "Amtsgericht Berlin (Charlottenburg)"
         assert result["tech_stack"] == "React, AWS"
         assert result["website_url"] == "https://example.de"
         assert result["github_org"] == "example-gmbh"
@@ -322,6 +324,115 @@ class TestEnrichmentResult:
 
 
 class TestAdditionalSources:
+    def test_extract_register_companies_from_next_payload(self):
+        payload = (
+            '<script>self.__next_f.push([1,"{\\"companies\\":[{'
+            '\\"name\\":\\"Zalando SE\\",'
+            '\\"location\\":\\"Berlin\\",'
+            '\\"euid\\":\\"DEF1103R.HRB158855B\\",'
+            '\\"registerType\\":{\\"name\\":\\"HRB\\"},'
+            '\\"registerCourt\\":{\\"name\\":\\"Berlin (Charlottenburg)\\"},'
+            '\\"registerNumber\\":\\"158855\\",'
+            '\\"changeFlag\\":false,'
+            '\\"deletedFlag\\":false,'
+            '\\"lastUpdate\\":\\"2026-05-22\\"'
+            '}]}"]) </script>'
+        )
+
+        companies = _extract_register_companies(payload)
+
+        assert companies == [
+            {
+                "name": "Zalando SE",
+                "location": "Berlin",
+                "euid": "DEF1103R.HRB158855B",
+                "registerType": {"name": "HRB"},
+                "registerCourt": {"name": "Berlin (Charlottenburg)"},
+                "registerNumber": "158855",
+                "changeFlag": False,
+                "deletedFlag": False,
+                "lastUpdate": "2026-05-22",
+            }
+        ]
+
+    def test_lookup_unternehmensregister_extracts_registration_fields(
+        self, monkeypatch
+    ):
+        class FakeResponse:
+            def __init__(self, payload=None, text: str = "", url: str = ""):
+                self.payload = payload
+                self.text = text
+                self.url = url
+                self.status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self.payload
+
+        class FakeClient:
+            def get(self, url, params=None, headers=None):
+                if url.endswith("/api/search-token"):
+                    return FakeResponse(
+                        {"token": "search-token", "status": "ok"},
+                        url=url,
+                    )
+                if url.endswith("/de/registerPortal"):
+                    assert params == {
+                        "companyName": "Zalando SE",
+                        "formType": "REGISTER_INFORMATION",
+                        "searchToken": "search-token",
+                    }
+                    return FakeResponse(
+                        text=(
+                            '<script>self.__next_f.push([1,"{\\"companies\\":[{'
+                            '\\"name\\":\\"Wrong GmbH\\",'
+                            '\\"registerNumber\\":\\"1\\"'
+                            "},{"
+                            '\\"name\\":\\"Zalando SE\\",'
+                            '\\"location\\":\\"Berlin\\",'
+                            '\\"euid\\":\\"DEF1103R.HRB158855B\\",'
+                            '\\"registerType\\":{\\"name\\":\\"HRB\\"},'
+                            '\\"registerCourt\\":{'
+                            '\\"name\\":\\"Berlin (Charlottenburg)\\"},'
+                            '\\"registerNumber\\":\\"158855\\",'
+                            '\\"changeFlag\\":false,'
+                            '\\"deletedFlag\\":false,'
+                            '\\"lastUpdate\\":\\"2026-05-22\\"'
+                            '}]}"]) </script>'
+                        ),
+                        url=(
+                            "https://www.unternehmensregister.de/de/registerinformationen"
+                            "?companyName=Zalando+SE&formType=REGISTER_INFORMATION"
+                            "&searchToken=secret-token"
+                        ),
+                    )
+                raise AssertionError(f"Unexpected URL: {url}")
+
+        monkeypatch.setattr(
+            "biradar.sources.enrichment.unternehmensregister._get_client",
+            lambda: FakeClient(),
+        )
+
+        result = lookup_unternehmensregister("Zalando SE")
+
+        assert result is not None
+        assert result["source"] == "unternehmensregister"
+        assert result["company_name"] == "Zalando SE"
+        assert result["location"] == "Berlin"
+        assert result["legal_form"] == "SE"
+        assert result["registry_court"] == "Amtsgericht Berlin (Charlottenburg)"
+        assert result["registry_number"] == "HRB 158855"
+        assert result["company_status"] == "active"
+        assert result["euid"] == "DEF1103R.HRB158855B"
+        assert result["last_update"] == "2026-05-22"
+        assert result["source_url"] == (
+            "https://www.unternehmensregister.de/de/registerinformationen"
+            "?companyName=Zalando+SE&formType=REGISTER_INFORMATION"
+        )
+        assert "searchToken" not in result["source_url"]
+
     def test_lookup_north_data_extracts_registry_fields(self, monkeypatch):
         class FakeResponse:
             def __init__(self, text: str):

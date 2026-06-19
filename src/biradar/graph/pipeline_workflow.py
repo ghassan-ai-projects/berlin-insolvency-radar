@@ -46,6 +46,8 @@ def _build_enrichment_claims(result: Any) -> list[EnrichmentClaimPayload]:
             "tech_stack",
             "github_org",
             "funding_info",
+            "euid",
+            "last_update",
         ):
             val = src.get(field)
             if val:
