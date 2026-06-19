@@ -161,6 +161,8 @@ def test_at_0_5_config_loads_and_validates(config_dir):
     assert "official_insolvency_berlin" in config.sources
     assert config.sources["official_insolvency_berlin"].enabled is True
     assert config.enrichment.enabled is True
+    assert config.enrichment.sources["north_data"] is True
+    assert config.enrichment.sources["wikidata"] is True
 
 
 def test_at_0_6_minimal_langgraph_workflow_runs(container):

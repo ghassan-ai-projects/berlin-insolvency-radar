@@ -1,7 +1,7 @@
 # Berlin Insolvency Opportunity Radar
 
 **Status:** Research validated; MCP-first Phase 0 ready
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-19
 
 ## Concept
 
@@ -76,6 +76,13 @@ Yet there's no curated, Berlin/Germany-focused weekly opportunity newsletter. Ex
 | File | Purpose |
 |------|---------|
 | `README.md` | This file — project overview |
+| `full-project-review-2026-06-19.md` | Current end-to-end project review, validation status, and improvement plan |
+| `implementation-backlog-2026-06-19.md` | Ordered engineering backlog with priorities, dependencies, affected files, and validation |
+| `live-validation-2026-06-19.md` | Exact live test outcome for the 2026-06-19 review, including portal-vs-LLM split diagnosis |
+| `operational-upgrade-delivery-2026-06-19.md` | Completed engineering phases, live-source validation, product-value impact, and remaining design work |
+| `operationalization-plan-2026-06-19.md` | Phased plan to turn the project into a dependable live operational system |
+| `parser-model-enrichment-direction-2026-06-19.md` | Focused direction on parser robustness, model abstraction, and generic enrichment design |
+| `research/source-expansion-2026-06-19.md` | Current research on additional acquisition/enrichment sources and a modular source-adapter design |
 | `HANDOFF-TO-CODING-AGENT.md` | **Complete build brief — start here** |
 | `research/market.md` | Market research, competitor analysis, trends |
 | `research/legal.md` | Legal & regulatory considerations |

@@ -556,7 +556,9 @@ def lookup_north_data(company_name: str) -> dict[str, Any] | None:
 
         detail_href = None
         for link in search_soup.find_all("a", href=True):
-            href = link.get("href", "")
+            href = link.get("href")
+            if href is None:
+                continue
             if not href.startswith("/") or href.startswith("/_"):
                 continue
             if href.count("/") < 2:
@@ -668,18 +670,14 @@ def lookup_wikidata(company_name: str) -> dict[str, Any] | None:
         if "P856" in claims:
             website_claim = claims["P856"][0]
             website_url = (
-                website_claim.get("mainsnak", {})
-                .get("datavalue", {})
-                .get("value")
+                website_claim.get("mainsnak", {}).get("datavalue", {}).get("value")
             )
 
         sector = None
         if "P452" in claims:
             industry_claim = claims["P452"][0]
             industry_value = (
-                industry_claim.get("mainsnak", {})
-                .get("datavalue", {})
-                .get("value", {})
+                industry_claim.get("mainsnak", {}).get("datavalue", {}).get("value", {})
             )
             industry_entity_id = industry_value.get("id")
             if industry_entity_id:

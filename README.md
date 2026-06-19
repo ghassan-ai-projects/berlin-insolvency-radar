@@ -14,8 +14,8 @@ BIRADAR automates the pipeline: scrape, extract, enrich, score, review, and expo
 ## What It Does
 
 - **Scrapes** the official Berlin insolvency portal with JSF session management
-- **Extracts** structured facts from raw notices via LLM (DeepSeek) with prompt hardening
-- **Enriches** candidates with public-source data
+- **Extracts** structured facts from raw notices via a provider-neutral OpenAI-compatible LLM adapter
+- **Enriches** candidates with registry-style public-source adapters
 - **Scores** opportunities deterministically across 5 weighted dimensions (1–5 scale)
 - **Reviews** for legal, compliance, and evidence risks with self-correcting retry logic
 - **Exports** ranked Markdown newsletter drafts with audit trails and disclaimers
@@ -27,7 +27,7 @@ git clone https://github.com/ghassan-ai-projects/berlin-insolvency-radar.git
 cd berlin-insolvency-radar
 uv sync --extra dev
 cp .env.example .env
-# Edit .env with your DEEPSEEK_API_KEY
+# Edit .env with your BIRADAR_LLM_API_KEY or DEEPSEEK_API_KEY
 ```
 
 ### Verify (code quality, no network)
@@ -43,15 +43,17 @@ No `.env` or API key needed — tests use fixtures and stubs exclusively.
 ## Production Mode
 
 A production run scrapes the **live** official Berlin insolvency portal
-(`neu.insolvenzbekanntmachungen.de`), calls the **live** DeepSeek API for fact
-extraction and risk review, hits **live** enrichment sources (Bundesanzeiger,
-GitHub, company websites), and persists everything to `data/radar.duckdb`.
+(`neu.insolvenzbekanntmachungen.de`), calls a **live** OpenAI-compatible model
+backend for fact extraction and risk review, hits **live** enrichment sources
+(Bundesanzeiger, GitHub, company websites, North Data, Wikidata), and persists
+everything to `data/radar.duckdb`.
 
 ### Prerequisites
 
 ```bash
 cp .env.example .env
-# Set DEEPSEEK_API_KEY=sk-... in .env
+# Set BIRADAR_LLM_API_KEY=sk-... and BIRADAR_LLM_MODEL=... in .env
+# Or keep using the backward-compatible DEEPSEEK_* variables
 # Verify config/sources.yaml has official_insolvency_berlin.enabled: true
 uv sync --extra dev
 ```

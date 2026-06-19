@@ -22,3 +22,10 @@ enrichment:
   enabled: true
   timeout_seconds: 10
   delay_between_sources: 0.3
+  sources:
+    bundesanzeiger: true
+    github: true
+    website: true
+    handelsregister: true
+    north_data: true
+    wikidata: true

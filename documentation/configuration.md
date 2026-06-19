@@ -13,9 +13,14 @@
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DEEPSEEK_API_KEY` | For LLM features | *(none)* | DeepSeek API key |
-| `DEEPSEEK_API_BASE` | No | `https://api.deepseek.com/v1` | DeepSeek API base URL |
-| `DEEPSEEK_MODEL` | No | `deepseek-chat` | Model name for LLM calls |
+| `BIRADAR_LLM_API_KEY` | For generic LLM usage | *(none)* | Provider-neutral API key for OpenAI-compatible backends |
+| `BIRADAR_LLM_MODEL` | For generic LLM usage | *(none)* | Model name for the configured provider |
+| `BIRADAR_LLM_BASE_URL` | No | *(none)* | Custom OpenAI-compatible base URL |
+| `BIRADAR_LLM_PROVIDER` | No | `openai_compatible` | Provider label used for runtime reporting |
+| `BIRADAR_LLM_TIMEOUT_SECONDS` | No | `30` | Shared timeout for extraction and risk review |
+| `DEEPSEEK_API_KEY` | Backward-compatible fallback | *(none)* | Legacy DeepSeek API key |
+| `DEEPSEEK_API_BASE` | No | `https://api.deepseek.com/v1` | Legacy DeepSeek API base URL |
+| `DEEPSEEK_MODEL` | No | `deepseek-chat` | Legacy DeepSeek model name |
 
 ## Scoring Configuration (`config/scoring.yaml`)
 
@@ -62,10 +67,18 @@ enrichment:
   enabled: true
   timeout_seconds: 10
   delay_between_sources: 0.3
+  sources:
+    bundesanzeiger: true
+    github: true
+    website: true
+    handelsregister: true
+    north_data: true
+    wikidata: true
 ```
 
 - `enabled: true` — live enrichment is active
 - `enabled: false` — enrichment is skipped without substituting fake data
+- `sources.<name>: true|false` — enable or disable individual registered enrichment adapters without code changes
 
 ## Settings (Programmatic)
 

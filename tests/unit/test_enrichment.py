@@ -49,7 +49,9 @@ class TestEnrichCandidateLiveMode:
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
             lambda: type(
-                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+                "Cfg",
+                (),
+                {"enabled": True, "delay_between_sources": 0.0, "sources": {}},
             )(),
         )
 
@@ -81,6 +83,7 @@ class TestEnrichCandidateLiveMode:
                 "status_code": 200,
                 "source": "website",
             }
+
         monkeypatch.setattr(
             "biradar.sources.enrichment._resolve_enrichment_sources",
             lambda: [
@@ -105,7 +108,9 @@ class TestEnrichCandidateLiveMode:
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
             lambda: type(
-                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+                "Cfg",
+                (),
+                {"enabled": True, "delay_between_sources": 0.0, "sources": {}},
             )(),
         )
 
@@ -145,13 +150,17 @@ class TestEnrichCandidateLiveMode:
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
             lambda: type(
-                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+                "Cfg",
+                (),
+                {"enabled": True, "delay_between_sources": 0.0, "sources": {}},
             )(),
         )
         monkeypatch.setattr(
             "biradar.sources.enrichment._resolve_enrichment_sources",
             lambda: [
-                EnrichmentSourceDefinition("bundesanzeiger", lambda _company_name: None),
+                EnrichmentSourceDefinition(
+                    "bundesanzeiger", lambda _company_name: None
+                ),
                 EnrichmentSourceDefinition("github", lambda _company_name: None),
                 EnrichmentSourceDefinition("website", lambda _company_name: None),
             ],
@@ -167,7 +176,9 @@ class TestEnrichCandidateLiveMode:
         monkeypatch.setattr(
             "biradar.sources.enrichment._get_enrichment_config",
             lambda: type(
-                "Cfg", (), {"enabled": True, "delay_between_sources": 0.0, "sources": {}}
+                "Cfg",
+                (),
+                {"enabled": True, "delay_between_sources": 0.0, "sources": {}},
             )(),
         )
         monkeypatch.setattr(

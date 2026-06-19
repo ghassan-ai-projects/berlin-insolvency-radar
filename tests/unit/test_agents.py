@@ -12,7 +12,9 @@ def test_extraction_agent_requires_api_key():
     original_key = os.environ.pop("DEEPSEEK_API_KEY", None)
 
     try:
-        with pytest.raises(RuntimeError, match="BIRADAR_LLM_API_KEY or DEEPSEEK_API_KEY"):
+        with pytest.raises(
+            RuntimeError, match="BIRADAR_LLM_API_KEY or DEEPSEEK_API_KEY"
+        ):
             extract_filing_facts("Test text", "http://example.com")
     finally:
         if original_biradar_key:
@@ -32,7 +34,9 @@ def test_risk_review_agent_requires_api_key():
         enrichment_data = {"sector": "Tech"}
         draft_thesis = "Good opportunity."
 
-        with pytest.raises(RuntimeError, match="BIRADAR_LLM_API_KEY or DEEPSEEK_API_KEY"):
+        with pytest.raises(
+            RuntimeError, match="BIRADAR_LLM_API_KEY or DEEPSEEK_API_KEY"
+        ):
             review_candidate_risk(
                 candidate_data, extraction_data, enrichment_data, draft_thesis
             )
