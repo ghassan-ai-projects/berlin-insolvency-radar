@@ -2,12 +2,13 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from mcp.server import Server
 from mcp.types import TextContent, Tool
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from biradar.mcp.envelope import ResultEnvelope
 from biradar.mcp.schemas import (
@@ -28,202 +29,159 @@ from biradar.services.pipeline import run_pipeline
 logger = logging.getLogger(__name__)
 
 
-def list_radar_tools() -> list[Tool]:
-    """Return the v0 MCP tool definitions."""
+@dataclass(frozen=True)
+class RadarToolSpec:
+    name: str
+    description: str
+    input_model: type[BaseModel]
+    handler: Any
+
+
+def _workflow_result_to_envelope(result: dict[str, Any]) -> ResultEnvelope[Any]:
+    return ResultEnvelope(
+        ok=result.get("status") == "success",
+        data=result,
+        errors=(
+            []
+            if result.get("status") == "success"
+            else [
+                {
+                    "code": "WORKFLOW_FAILED",
+                    "message": result.get("error", "Workflow failed."),
+                    "retryable": True,
+                }
+            ]
+        ),
+        next_action=(
+            "Inspect radar_audit_trail and exported artifacts."
+            if result.get("status") == "success"
+            else "Review the workflow error and retry the run."
+        ),
+    )
+
+
+def _tool_specs() -> list[RadarToolSpec]:
     return [
-        Tool(
+        RadarToolSpec(
             name="radar_health",
             description="Check application health, database status, and next recommended action.",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-            },
+            input_model=HealthInput,
+            handler=lambda container, _params: container.health.check(),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_import_legacy_scout",
             description="Import or dry-run import from legacy insolvency_scout DuckDB.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "legacy_db_path": {"type": "string"},
-                    "since": {"type": "string", "description": "YYYY-MM-DD"},
-                    "until": {"type": "string", "description": "YYYY-MM-DD"},
-                    "dry_run": {"type": "boolean", "default": True},
-                    "actor": {"type": "string", "default": "system"},
-                },
-                "required": ["legacy_db_path"],
-            },
+            input_model=ImportLegacyScoutInput,
+            handler=lambda container, params: (
+                container.legacy_import.import_legacy_scout(params)
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_list_candidates",
             description="List candidates, defaulting to those needing work.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "statuses": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "enum": [
-                                "raw_candidate",
-                                "deduped_candidate",
-                                "needs_review",
-                                "review_ready",
-                                "publish_ready",
-                                "rejected",
-                                "archived",
-                                "duplicate",
-                                "quarantined",
-                            ],
-                        },
-                    },
-                    "limit": {"type": "integer", "default": 25},
-                    "offset": {"type": "integer", "default": 0},
-                },
-            },
+            input_model=ListCandidatesInput,
+            handler=lambda container, params: container.candidates.list_candidates(
+                statuses=list(params.statuses) if params.statuses else None,
+                limit=params.limit,
+                offset=params.offset,
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_get_candidate",
             description="Get full candidate detail with evidence and lineage.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "candidate_id": {"type": "string"},
-                },
-                "required": ["candidate_id"],
-            },
+            input_model=GetCandidateInput,
+            handler=lambda container, params: container.candidates.get_candidate(
+                params.candidate_id
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_review_candidate",
             description="Review a candidate: approve, reject, needs_more_info, mark_duplicate, or archive.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "candidate_id": {"type": "string"},
-                    "decision": {
-                        "type": "string",
-                        "enum": [
-                            "approve",
-                            "reject",
-                            "needs_more_info",
-                            "mark_duplicate",
-                            "archive",
-                        ],
-                    },
-                    "reviewer": {"type": "string"},
-                    "note": {"type": "string"},
-                    "score_input": {
-                        "type": "object",
-                        "properties": {
-                            "company_value": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 5,
-                            },
-                            "asset_quality": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 5,
-                            },
-                            "sector_attractiveness": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 5,
-                            },
-                            "speed_of_action": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 5,
-                            },
-                            "legal_risk": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 5,
-                            },
-                            "rationale": {
-                                "type": "object",
-                                "additionalProperties": {"type": "string"},
-                            },
-                        },
-                        "required": [
-                            "company_value",
-                            "asset_quality",
-                            "sector_attractiveness",
-                            "speed_of_action",
-                            "legal_risk",
-                        ],
-                    },
-                },
-                "required": ["candidate_id", "decision", "reviewer"],
-            },
+            input_model=ReviewCandidateInput,
+            handler=lambda container, params: container.reviews.review_candidate(
+                candidate_id=params.candidate_id,
+                decision=params.decision,
+                reviewer=params.reviewer,
+                note=params.note,
+                score_input=(
+                    params.score_input.model_dump() if params.score_input else None
+                ),
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_create_issue_draft",
             description="Create a newsletter issue draft from approved candidates.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "week": {"type": "string"},
-                    "tier": {"type": "string", "enum": ["free", "paid"]},
-                    "candidate_ids": {"type": "array", "items": {"type": "string"}},
-                    "title": {"type": "string"},
-                    "include_disclaimer": {"type": "boolean", "default": True},
-                    "actor": {"type": "string", "default": "system"},
-                },
-                "required": ["week", "tier", "candidate_ids", "title"],
-            },
+            input_model=CreateIssueDraftInput,
+            handler=lambda container, params: container.issues.create_issue_draft(
+                week=params.week,
+                tier=params.tier,
+                candidate_ids=params.candidate_ids,
+                title=params.title,
+                include_disclaimer=params.include_disclaimer,
+                actor=params.actor,
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_export_issue",
             description="Export an issue draft to a local Markdown file.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "issue_id": {"type": "string"},
-                    "format": {"type": "string", "default": "markdown"},
-                    "actor": {"type": "string", "default": "system"},
-                },
-                "required": ["issue_id"],
-            },
+            input_model=ExportIssueInput,
+            handler=lambda container, params: container.issues.export_issue(
+                issue_id=params.issue_id,
+                format=params.format,
+                actor=params.actor,
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_audit_trail",
             description="Retrieve audit events for an entity.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "entity_type": {"type": "string"},
-                    "entity_id": {"type": "string"},
-                    "actor": {"type": "string"},
-                    "limit": {"type": "integer", "default": 50},
-                },
-            },
+            input_model=AuditTrailInput,
+            handler=lambda container, params: ResultEnvelope(
+                ok=True,
+                data=container.audit_repo.get_events(
+                    entity_type=params.entity_type,
+                    entity_id=params.entity_id,
+                    actor=params.actor,
+                    limit=params.limit,
+                ),
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_list_source_runs",
             description="Inspect source-run history for official acquisition runs.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "source_id": {"type": "string"},
-                    "status": {"type": "string"},
-                    "limit": {"type": "integer", "default": 20},
-                },
-            },
+            input_model=ListSourceRunsInput,
+            handler=lambda container, params: ResultEnvelope(
+                ok=True,
+                data=container.health.source_repo.list_runs(
+                    source_id=params.source_id,
+                    status=params.status,
+                    limit=params.limit,
+                ),
+            ),
         ),
-        Tool(
+        RadarToolSpec(
             name="radar_run_workflow",
             description="Trigger the production workflow pipeline from ingestion to local export.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "start_date": {"type": "string", "description": "YYYY-MM-DD"},
-                    "end_date": {"type": "string", "description": "YYYY-MM-DD"},
-                    "dry_run": {"type": "boolean", "default": False},
-                },
-                "required": ["start_date", "end_date"],
-            },
+            input_model=RunWorkflowInput,
+            handler=lambda _container, params: _workflow_result_to_envelope(
+                run_pipeline(
+                    start_date=params.start_date,
+                    end_date=params.end_date,
+                    dry_run=params.dry_run,
+                )
+            ),
         ),
+    ]
+
+
+def list_radar_tools() -> list[Tool]:
+    """Return the MCP tool definitions derived from schema models."""
+    return [
+        Tool(
+            name=spec.name,
+            description=spec.description,
+            inputSchema=spec.input_model.model_json_schema(),
+        )
+        for spec in _tool_specs()
     ]
 
 
@@ -246,117 +204,26 @@ def validation_error(message: str) -> ResultEnvelope[Any]:
 def call_radar_tool(
     container: AppContainer, name: str, arguments: dict[str, Any] | None = None
 ) -> ResultEnvelope[Any]:
-    """Execute a v0 radar tool through the same path used by MCP."""
+    """Execute a radar tool through the same path used by MCP."""
     args = arguments or {}
+    spec_by_name = {spec.name: spec for spec in _tool_specs()}
+
     try:
-        if name == "radar_health":
-            HealthInput(**args)  # Validate (empty)
-            return container.health.check()
-
-        if name == "radar_import_legacy_scout":
-            params = ImportLegacyScoutInput(**args)
-            return container.legacy_import.import_legacy_scout(params)
-
-        if name == "radar_list_candidates":
-            params = ListCandidatesInput(**args)
-            return container.candidates.list_candidates(
-                statuses=list(params.statuses) if params.statuses else None,
-                limit=params.limit,
-                offset=params.offset,
-            )
-
-        if name == "radar_get_candidate":
-            params = GetCandidateInput(**args)
-            return container.candidates.get_candidate(params.candidate_id)
-
-        if name == "radar_review_candidate":
-            params = ReviewCandidateInput(**args)
-            return container.reviews.review_candidate(
-                candidate_id=params.candidate_id,
-                decision=params.decision,
-                reviewer=params.reviewer,
-                note=params.note,
-                score_input=params.score_input.model_dump()
-                if params.score_input
-                else None,
-            )
-
-        if name == "radar_create_issue_draft":
-            params = CreateIssueDraftInput(**args)
-            return container.issues.create_issue_draft(
-                week=params.week,
-                tier=params.tier,
-                candidate_ids=params.candidate_ids,
-                title=params.title,
-                include_disclaimer=params.include_disclaimer,
-                actor=params.actor,
-            )
-
-        if name == "radar_export_issue":
-            params = ExportIssueInput(**args)
-            return container.issues.export_issue(
-                issue_id=params.issue_id,
-                format=params.format,
-                actor=params.actor,
-            )
-
-        if name == "radar_audit_trail":
-            params = AuditTrailInput(**args)
-            events = container.audit_repo.get_events(
-                entity_type=params.entity_type,
-                entity_id=params.entity_id,
-                actor=params.actor,
-                limit=params.limit,
-            )
-            return ResultEnvelope(ok=True, data=events)
-
-        if name == "radar_list_source_runs":
-            params = ListSourceRunsInput(**args)
-            runs = container.health.source_repo.list_runs(
-                source_id=params.source_id,
-                status=params.status,
-                limit=params.limit,
-            )
-            return ResultEnvelope(ok=True, data=runs)
-
-        if name == "radar_run_workflow":
-            params = RunWorkflowInput(**args)
-            result = run_pipeline(
-                start_date=params.start_date,
-                end_date=params.end_date,
-                dry_run=params.dry_run,
-            )
+        spec = spec_by_name.get(name)
+        if spec is None:
             return ResultEnvelope(
-                ok=result.get("status") == "success",
-                data=result,
-                errors=(
-                    []
-                    if result.get("status") == "success"
-                    else [
-                        {
-                            "code": "WORKFLOW_FAILED",
-                            "message": result.get("error", "Workflow failed."),
-                            "retryable": True,
-                        }
-                    ]
-                ),
-                next_action=(
-                    "Inspect radar_audit_trail and exported artifacts."
-                    if result.get("status") == "success"
-                    else "Review the workflow error and retry the run."
-                ),
+                ok=False,
+                errors=[
+                    {
+                        "code": "TOOL_NOT_FOUND",
+                        "message": f"Unknown tool: {name}",
+                        "retryable": False,
+                    }
+                ],
             )
 
-        return ResultEnvelope(
-            ok=False,
-            errors=[
-                {
-                    "code": "TOOL_NOT_FOUND",
-                    "message": f"Unknown tool: {name}",
-                    "retryable": False,
-                }
-            ],
-        )
+        params = spec.input_model(**args)
+        return spec.handler(container, params)
     except ValidationError as e:
         return validation_error(str(e))
     except Exception:

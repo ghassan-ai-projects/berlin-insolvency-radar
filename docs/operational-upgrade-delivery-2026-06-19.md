@@ -110,6 +110,16 @@ This matters because product expansion is now a configuration contract, not an o
 
 This reduces graph drift and makes future MCP and evaluation work less fragile.
 
+### 11. MCP tool publication and execution now share one registry
+
+- tool metadata is now derived from the same Pydantic models used for validation
+- the dispatcher no longer duplicates the MCP contract in a long `if/elif` chain
+- MCP tests now assert both:
+  - schema publication
+  - stable unknown-tool and validation failures
+
+This closes a real boundary bug class: published tool shapes and executed validation logic can no longer drift independently.
+
 ## Live Validation
 
 ### Confirmed working with real data
