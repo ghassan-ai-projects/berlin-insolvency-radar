@@ -22,6 +22,8 @@ from biradar.storage.db import Database
 from biradar.storage.repository import (
     AuditRepository,
     CandidateRepository,
+    EnrichmentClaimRepository,
+    EnrichmentRepository,
     EvidenceRepository,
     IssueRepository,
     RawRecordRepository,
@@ -166,6 +168,8 @@ def _persist_results(
     """Persist successful workflow outputs into DuckDB-owned product state."""
     candidate_repo = CandidateRepository(db)
     evidence_repo = EvidenceRepository(db)
+    enrichment_claim_repo = EnrichmentClaimRepository(db)
+    enrichment_repo = EnrichmentRepository(db)
     score_repo = ScoreRepository(db)
     review_repo = ReviewRepository(db)
     issue_repo = IssueRepository(db)
@@ -213,6 +217,9 @@ def _persist_results(
         extraction_result = final_state.get("extraction_results", {}).get(
             candidate_id, {}
         )
+        enrichment_result = final_state.get("enrichment_results", {}).get(
+            candidate_id, {}
+        )
         evidence_snippets = extraction_result.get("evidence_snippets", {})
         confidence_scores = extraction_result.get("field_confidence_scores", {})
         for field, snippet in evidence_snippets.items():
@@ -234,6 +241,48 @@ def _persist_results(
                 content_hash=hashlib.sha256(
                     f"{candidate_id}:{field}:{snippet}".encode()
                 ).hexdigest(),
+            )
+
+        enrichment_data = enrichment_result.get("data", {})
+        if enrichment_data or enrichment_result.get("claims"):
+            enrichment_repo.save_enrichment(
+                candidate_id=candidate_id,
+                sector=enrichment_data.get("sector"),
+                funding_info=enrichment_data.get("funding_info"),
+                tech_stack=enrichment_data.get("tech_stack"),
+                website_url=enrichment_data.get("website_url"),
+                website_status=str(enrichment_data.get("website_status"))
+                if enrichment_data.get("website_status") is not None
+                else None,
+                github_org=enrichment_data.get("github_org"),
+            )
+
+        for claim in enrichment_result.get("claims", []):
+            field = claim.get("field")
+            value = claim.get("value")
+            if not field or value is None:
+                continue
+            content_hash = hashlib.sha256(
+                (
+                    f"{candidate_id}:{claim.get('source_url')}:{field}:"
+                    f"{value}:{claim.get('classification')}:{claim.get('note')}"
+                ).encode()
+            ).hexdigest()
+            enrichment_claim_repo.insert_claim(
+                claim_id=f"claim_{uuid.uuid4().hex}",
+                candidate_id=candidate_id,
+                source_provider=str(claim.get("source_provider") or "unknown"),
+                source_url=claim.get("source_url"),
+                retrieved_at=datetime.now(UTC).isoformat(),
+                field=str(field),
+                value=str(value),
+                classification=(
+                    str(claim.get("classification"))
+                    if claim.get("classification") is not None
+                    else None
+                ),
+                note=str(claim.get("note")) if claim.get("note") is not None else None,
+                content_hash=content_hash,
             )
 
         score_payload = final_state.get("scores", {}).get(candidate_id)

@@ -37,13 +37,13 @@ Completed in code on 2026-06-19:
 - P0.5 Split parser strategies and classify portal responses
 - P1.1 Introduce provider-neutral LLM adapter
 - P1.2 Refactor enrichment into registry/adapters
+- P1.5 Normalize source-claim storage
 - P1.4 partially superseded by `north_data` and `wikidata` source additions
 
 Still remaining:
 
 - P0.1 Green the full repo gate with `make check`
 - P1.3 Add Unternehmensregister
-- P1.5 Normalize source-claim storage
 - P2.x typing, MCP boundary, and eval-set work
 - P3.1 recurring issue production and market validation
 

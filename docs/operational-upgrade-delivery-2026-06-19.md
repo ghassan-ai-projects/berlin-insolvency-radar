@@ -53,6 +53,16 @@ This is the structural change needed to make source expansion cheap.
 
 These supplement the existing sources with better public company identity and sector signals.
 
+### 6. Enrichment claims are now persisted as first-class records
+
+- a dedicated `enrichment_claims` table was added
+- pipeline persistence now stores normalized source claims, not only merged summary fields
+- candidate detail retrieval now exposes:
+  - `enrichment_summary`
+  - `enrichment_claims`
+
+This closes an important contract gap: source-specific enrichment evidence now survives beyond a single workflow run.
+
 ## Live Validation
 
 ### Confirmed working with real data
@@ -88,11 +98,10 @@ This is the first version that looks like a maintainable product core rather tha
 
 The next design areas to improve are:
 
-1. Normalize enrichment claim persistence in storage instead of flattening merged fields.
-2. Add bounded retry and circuit-breaker behavior for live extraction/review calls.
-3. Push source adapters into separate modules under a dedicated enrichment package.
-4. Add a small evaluation set for extraction quality, not only runtime correctness.
-5. Strengthen workflow typing so state contracts are less `dict`-shaped.
+1. Add bounded retry and circuit-breaker behavior for live extraction/review calls.
+2. Push source adapters into separate modules under a dedicated enrichment package.
+3. Add a small evaluation set for extraction quality, not only runtime correctness.
+4. Strengthen workflow typing so state contracts are less `dict`-shaped.
 
 ## Commit Sequence
 

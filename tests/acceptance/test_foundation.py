@@ -49,6 +49,7 @@ def test_at_0_1_fresh_database_boot(config_dir, temp_db_path):
         "candidates",
         "candidate_sources",
         "evidence_items",
+        "enrichment_claims",
         "scores",
         "reviews",
         "issues",

@@ -265,6 +265,7 @@ def test_build_enrichment_claims_uses_source_url_fallback():
     assert len(claims) == 1
     assert claims[0]["field"] == "registry_number"
     assert claims[0]["source_url"] == "https://www.northdata.de/example"
+    assert claims[0]["source_provider"] == "north_data"
 
 
 def test_risk_review_quarantines_unsupported_non_inference_claims():

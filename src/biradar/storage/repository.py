@@ -127,6 +127,10 @@ class CandidateRepository:
         scores = ScoreRepository(self.db).get_for_candidate(candidate_id)
         reviews = ReviewRepository(self.db).get_for_candidate(candidate_id)
         source_lineage = RawRecordRepository(self.db).get_for_candidate(candidate_id)
+        enrichment_summary = EnrichmentRepository(self.db).get_enrichment(candidate_id)
+        enrichment_claims = EnrichmentClaimRepository(self.db).get_for_candidate(
+            candidate_id
+        )
         audit_events = AuditRepository(self.db).get_events(
             entity_type="candidate", entity_id=candidate_id, limit=100
         )
@@ -137,6 +141,8 @@ class CandidateRepository:
             "scores": scores,
             "reviews": reviews,
             "source_lineage": source_lineage,
+            "enrichment_summary": enrichment_summary,
+            "enrichment_claims": enrichment_claims,
             "audit_events": audit_events,
         }
 
@@ -823,3 +829,79 @@ class EnrichmentRepository:
             return None
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
+
+
+class EnrichmentClaimRepository:
+    """Repository for source-normalized enrichment claims."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def insert_claim(
+        self,
+        claim_id: str,
+        candidate_id: str,
+        source_provider: str,
+        source_url: str | None,
+        retrieved_at: str,
+        field: str,
+        value: str,
+        classification: str | None,
+        note: str | None,
+        content_hash: str,
+    ) -> str:
+        """Insert an enrichment claim if absent and return its ID."""
+        existing = self.db.conn.execute(
+            """
+            SELECT claim_id FROM enrichment_claims
+            WHERE candidate_id = ? AND field = ? AND content_hash = ?
+            LIMIT 1
+            """,
+            [candidate_id, field, content_hash],
+        ).fetchone()
+        if existing:
+            return existing[0]
+
+        self.db.conn.execute(
+            """
+            INSERT INTO enrichment_claims
+            (claim_id, candidate_id, source_provider, source_url, retrieved_at,
+             field, value, classification, note, content_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(claim_id) DO NOTHING
+            """,
+            [
+                claim_id,
+                candidate_id,
+                source_provider,
+                source_url,
+                retrieved_at,
+                field,
+                value,
+                classification,
+                note,
+                content_hash,
+            ],
+        )
+        return claim_id
+
+    def get_for_candidate(self, candidate_id: str) -> list[dict[str, Any]]:
+        """Get persisted enrichment claims for a candidate."""
+        cursor = self.db.conn.execute(
+            """
+            SELECT * FROM enrichment_claims
+            WHERE candidate_id = ?
+            ORDER BY retrieved_at DESC, source_provider ASC, field ASC
+            """,
+            [candidate_id],
+        )
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def count_for_candidate(self, candidate_id: str) -> int:
+        """Count persisted enrichment claims for a candidate."""
+        row = self.db.conn.execute(
+            "SELECT COUNT(*) FROM enrichment_claims WHERE candidate_id = ?",
+            [candidate_id],
+        ).fetchone()
+        return int(row[0]) if row else 0

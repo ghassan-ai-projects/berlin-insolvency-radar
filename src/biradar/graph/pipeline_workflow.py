@@ -48,6 +48,7 @@ def _build_enrichment_claims(result: Any) -> list[dict[str, Any]]:
                         "field": field,
                         "value": str(val),
                         "classification": "verified",
+                        "source_provider": source_name,
                         "source_url": source_url,
                         "note": f"From {source_name}",
                     }

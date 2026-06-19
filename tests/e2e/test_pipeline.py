@@ -106,6 +106,13 @@ def test_pipeline_fixture_mode_persists_state():
                 ).fetchone()[0]
                 == 1
             )
+            assert (
+                db.conn.execute("SELECT COUNT(*) FROM enrichments").fetchone()[0] == 1
+            )
+            assert (
+                db.conn.execute("SELECT COUNT(*) FROM enrichment_claims").fetchone()[0]
+                > 0
+            )
             assert db.conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0] == 1
         finally:
             db.close()
@@ -119,6 +126,43 @@ def test_pipeline_fixture_mode_persists_state():
         assert "content_sections" in data["candidates"][0]
         assert "facts" in data["candidates"][0]["content_sections"]
         assert "editorial" in data["candidates"][0]["content_sections"]
+
+
+def test_pipeline_fixture_mode_candidate_detail_includes_enrichment_claims():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "workflow_fixture_claims.duckdb"
+        result = run_pipeline(
+            start_date=date(2026, 6, 10),
+            end_date=date(2026, 6, 16),
+            dry_run=False,
+            thread_id="fixture_claims_detail_test",
+            db_path=db_path,
+            source_mode="fixture",
+            extractor=_stub_extractor,
+            risk_reviewer=_stub_risk_reviewer,
+            enricher=_stub_enricher,
+        )
+        assert result["status"] == "success"
+
+        from biradar.storage.db import Database
+        from biradar.storage.repository import CandidateRepository
+
+        db = Database(db_path)
+        try:
+            candidate_id = db.conn.execute(
+                "SELECT candidate_id FROM candidates LIMIT 1"
+            ).fetchone()[0]
+            detail = CandidateRepository(db).get_detail(candidate_id)
+        finally:
+            db.close()
+
+        assert detail is not None
+        assert detail["enrichment_summary"] is not None
+        assert len(detail["enrichment_claims"]) > 0
+        assert any(
+            claim["source_provider"] == "validation_stub"
+            for claim in detail["enrichment_claims"]
+        )
 
 
 def test_pipeline_check_command_path_passes():

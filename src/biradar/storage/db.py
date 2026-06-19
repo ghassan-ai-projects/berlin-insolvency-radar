@@ -9,6 +9,7 @@ MIGRATION_SEQUENCE = (
     "001_core_tables",
     "002_audit_table",
     "003_enrichments",
+    "004_enrichment_claims",
 )
 LATEST_SCHEMA_VERSION = MIGRATION_SEQUENCE[-1]
 
@@ -46,6 +47,7 @@ class Database:
             (MIGRATION_SEQUENCE[0], self._create_core_tables),
             (MIGRATION_SEQUENCE[1], self._create_audit_table),
             (MIGRATION_SEQUENCE[2], self._create_enrichments_table),
+            (MIGRATION_SEQUENCE[3], self._create_enrichment_claims_table),
         ]
 
         for name, migration_fn in migrations:
@@ -217,6 +219,24 @@ class Database:
                 github_org VARCHAR,
                 patent_count INTEGER DEFAULT 0,
                 enriched_at VARCHAR NOT NULL,
+                FOREIGN KEY (candidate_id) REFERENCES candidates(candidate_id)
+            );
+        """)
+
+    def _create_enrichment_claims_table(self) -> None:
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS enrichment_claims (
+                claim_id VARCHAR PRIMARY KEY,
+                candidate_id VARCHAR NOT NULL,
+                source_provider VARCHAR NOT NULL,
+                source_url VARCHAR,
+                retrieved_at VARCHAR NOT NULL,
+                field VARCHAR NOT NULL,
+                value VARCHAR NOT NULL,
+                classification VARCHAR,
+                note VARCHAR,
+                content_hash VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (candidate_id) REFERENCES candidates(candidate_id)
             );
         """)
