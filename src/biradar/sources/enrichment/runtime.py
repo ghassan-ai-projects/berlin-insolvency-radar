@@ -9,7 +9,11 @@ from functools import lru_cache
 
 import httpx
 
-from biradar.config.settings import get_settings, load_config
+from biradar.config.settings import (
+    EnrichmentSourceConfig,
+    get_settings,
+    load_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,14 @@ _http_client: httpx.Client | None = None
 def _get_enrichment_config():
     settings = get_settings()
     return load_config(settings.project_root / "config").enrichment
+
+
+def _get_source_config(source_name: str) -> EnrichmentSourceConfig:
+    config = _get_enrichment_config()
+    source_config = config.sources.get(source_name)
+    if source_config is None:
+        return EnrichmentSourceConfig()
+    return source_config
 
 
 def _get_client() -> httpx.Client:
@@ -113,3 +125,17 @@ def _http_get(url: str) -> httpx.Response | None:
 
     logger.warning("All %d retries exhausted for %s: %s", MAX_RETRIES, url, last_error)
     return None
+
+
+def source_timeout_seconds(source_name: str) -> float:
+    source_config = _get_source_config(source_name)
+    return source_config.timeout_seconds or _get_enrichment_config().timeout_seconds
+
+
+def source_delay_seconds(source_name: str) -> float:
+    source_config = _get_source_config(source_name)
+    return (
+        source_config.delay_between_sources
+        if source_config.delay_between_sources is not None
+        else _get_enrichment_config().delay_between_sources
+    )

@@ -23,9 +23,24 @@ enrichment:
   timeout_seconds: 10
   delay_between_sources: 0.3
   sources:
-    bundesanzeiger: true
-    github: true
-    website: true
-    handelsregister: true
-    north_data: true
-    wikidata: true
+    bundesanzeiger:
+      enabled: true
+    github:
+      enabled: true
+    website:
+      enabled: true
+    handelsregister:
+      enabled: true
+      timeout_seconds: 5
+    north_data:
+      enabled: true
+    wikidata:
+      enabled: true
+    unternehmensregister:
+      enabled: false
+      params:
+        integration_status: "research_validated_pending_runtime_adapter"
+    opencorporates:
+      enabled: false
+      params:
+        integration_status: "research_validated_pending_api_adapter"

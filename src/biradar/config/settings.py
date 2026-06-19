@@ -1,11 +1,12 @@
 """Typed configuration loading for the application."""
 
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Settings(BaseModel):
@@ -54,11 +55,39 @@ class SourceConfig(BaseModel):
     path: str | None = None
 
 
+class EnrichmentSourceConfig(BaseModel):
+    enabled: bool = True
+    timeout_seconds: float | None = Field(default=None, gt=0)
+    delay_between_sources: float | None = Field(default=None, ge=0.0)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class EnrichmentConfig(BaseModel):
     enabled: bool = False
     timeout_seconds: float = Field(default=10.0, gt=0)
     delay_between_sources: float = Field(default=0.3, ge=0.0)
-    sources: dict[str, bool] = Field(default_factory=dict)
+    sources: dict[str, EnrichmentSourceConfig] = Field(default_factory=dict)
+
+    @field_validator("sources", mode="before")
+    @classmethod
+    def validate_sources(
+        cls, value: Mapping[str, bool | Mapping[str, Any]] | None
+    ) -> dict[str, dict[str, Any]]:
+        if value is None:
+            return {}
+
+        normalized: dict[str, dict[str, Any]] = {}
+        for name, source_value in value.items():
+            if isinstance(source_value, bool):
+                normalized[name] = {"enabled": source_value}
+                continue
+            if isinstance(source_value, Mapping):
+                normalized[name] = dict(source_value)
+                continue
+            raise TypeError(
+                "Enrichment source config values must be bool or mapping objects"
+            )
+        return normalized
 
 
 class AppConfig(BaseModel):

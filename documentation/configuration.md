@@ -70,17 +70,35 @@ enrichment:
   timeout_seconds: 10
   delay_between_sources: 0.3
   sources:
-    bundesanzeiger: true
-    github: true
-    website: true
-    handelsregister: true
-    north_data: true
-    wikidata: true
+    bundesanzeiger:
+      enabled: true
+    github:
+      enabled: true
+    website:
+      enabled: true
+    handelsregister:
+      enabled: true
+      timeout_seconds: 5
+    north_data:
+      enabled: true
+    wikidata:
+      enabled: true
+    unternehmensregister:
+      enabled: false
+      params:
+        integration_status: research_validated_pending_runtime_adapter
+    opencorporates:
+      enabled: false
+      params:
+        integration_status: research_validated_pending_api_adapter
 ```
 
 - `enabled: true` — live enrichment is active
 - `enabled: false` — enrichment is skipped without substituting fake data
-- `sources.<name>: true|false` — enable or disable individual registered enrichment adapters without code changes
+- `sources.<name>.enabled` — enable or disable an individual adapter without code changes
+- `sources.<name>.timeout_seconds` — override the shared HTTP timeout for slow or brittle sources
+- `sources.<name>.delay_between_sources` — override inter-source pacing for a single adapter
+- `sources.<name>.params` — carry source-specific metadata or future adapter settings without changing the schema again
 
 ## Settings (Programmatic)
 

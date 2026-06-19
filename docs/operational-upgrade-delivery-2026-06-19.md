@@ -84,6 +84,20 @@ This reduces the cost of adding or replacing sources and makes the source layer 
 
 This improves the operational behavior of the full-live path even though the model stage still needs more real-world burn-in.
 
+### 9. Enrichment configuration is now per-source rather than boolean-only
+
+- each source can now carry:
+  - `enabled`
+  - `timeout_seconds`
+  - `delay_between_sources`
+  - `params`
+- `handelsregister` now uses a source-specific timeout override
+- researched-but-not-yet-live adapters can be tracked explicitly in config:
+  - `unternehmensregister`
+  - `opencorporates`
+
+This matters because product expansion is now a configuration contract, not an orchestrator rewrite.
+
 ## Live Validation
 
 ### Confirmed working with real data

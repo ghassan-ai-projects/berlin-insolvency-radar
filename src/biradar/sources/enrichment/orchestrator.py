@@ -22,7 +22,10 @@ from biradar.sources.enrichment.registry import (
     get_registered_enrichment_sources,
     is_source_disabled,
 )
-from biradar.sources.enrichment.runtime import _get_enrichment_config
+from biradar.sources.enrichment.runtime import (
+    _get_enrichment_config,
+    source_delay_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,10 @@ logger = logging.getLogger(__name__)
 def _is_source_enabled(source_name: str, enrichment_config: Any) -> bool:
     """Resolve whether a registered source is enabled in config."""
     source_flags = getattr(enrichment_config, "sources", {}) or {}
-    return bool(source_flags.get(source_name, True))
+    source_config = source_flags.get(source_name)
+    if source_config is None:
+        return True
+    return bool(getattr(source_config, "enabled", source_config))
 
 
 def _resolve_enrichment_sources() -> list[EnrichmentSourceDefinition]:
@@ -146,7 +152,7 @@ def enrich_candidate(company_name: str) -> EnrichmentResult:
             continue
 
         if idx > 0:
-            time.sleep(enrichment_config.delay_between_sources)
+            time.sleep(source_delay_seconds(source_name))
 
         try:
             logger.debug("Enriching '%s' via %s ...", company_name, source_name)

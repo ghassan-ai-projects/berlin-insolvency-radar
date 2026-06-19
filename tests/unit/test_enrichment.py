@@ -4,6 +4,7 @@ import socket
 
 import pytest
 
+from biradar.config.settings import load_config
 from biradar.sources.enrichment import (
     EnrichmentResult,
     EnrichmentSourceDefinition,
@@ -21,6 +22,13 @@ from biradar.sources.enrichment import (
 class TestEnrichmentConfig:
     def test_config_object_available(self):
         assert hasattr(_get_enrichment_config(), "enabled")
+
+    def test_source_config_supports_per_source_objects(self):
+        config = load_config("config").enrichment
+
+        assert config.sources["north_data"].enabled is True
+        assert config.sources["handelsregister"].timeout_seconds == 5
+        assert config.sources["unternehmensregister"].enabled is False
 
 
 class TestEnrichCandidateModes:
