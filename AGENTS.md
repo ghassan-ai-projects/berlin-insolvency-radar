@@ -18,8 +18,8 @@ LangGraph workflows in `graph/`, and thin transport handling in `mcp/`.
 ## Canonical Instruction Strategy
 
 - `AGENTS.md` is the cross-agent source of truth.
-- Qwen Code reads project-level skills and memory natively. Do not add `QWEN.md`.
-- `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` should stay as thin bridge files that point back here.
+- `QWEN.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` should stay as thin bridge files that point back here.
+- Qwen Code reads project-level skills and memory natively, so `QWEN.md` should remain a minimal bridge with no durable repo rules.
 - Keep durable repo rules here; keep personal preferences out of committed files.
 - Use path-scoped or workflow-specific agent files only when a narrow rule should not load in every session.
 

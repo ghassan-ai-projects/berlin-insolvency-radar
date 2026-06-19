@@ -8,15 +8,19 @@ Security fixes are currently targeted at the latest pre-release state only.
 
 Please do not open public issues for suspected vulnerabilities.
 
-Report privately to the maintainers with:
+Use the repository's GitHub Security Advisories private reporting flow.
+
+If private vulnerability reporting is unavailable for any reason, contact the
+repository owner through the email address published on the GitHub profile for
+`ghassan-ai-projects`.
+
+Include:
 
 - a clear description of the issue
 - affected version or commit
 - reproduction steps if available
 - impact assessment
 - any proposed mitigation
-
-Until a dedicated security contact channel is published, use a private maintainer contact path rather than public issue trackers.
 
 ## Security Expectations
 

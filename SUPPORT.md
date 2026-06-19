@@ -18,6 +18,14 @@ Open an issue when you have:
 - a clearly scoped feature request
 - a compatibility question that is not answered by the docs
 
+Use the GitHub issue tracker for this repository:
+
+- `https://github.com/ghassan-ai-projects/berlin-insolvency-radar/issues`
+
+Use GitHub Security Advisories instead of issues for vulnerabilities. Use the
+private maintainer contact path described in [SECURITY.md](SECURITY.md) for
+sensitive reports if GitHub private reporting is unavailable.
+
 ## What To Include
 
 - BIRADAR version or commit

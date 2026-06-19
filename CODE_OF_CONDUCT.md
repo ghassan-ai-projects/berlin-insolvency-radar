@@ -27,6 +27,6 @@ behavior they deem inappropriate.
 
 ## Reporting
 
-To report a violation, contact the maintainers privately. Until a dedicated
-contact channel is published, use a private maintainer contact path rather
-than public issue trackers.
+To report a violation, contact the repository owner through the email address
+published on the GitHub profile for `ghassan-ai-projects`. Do not use public
+issues for conduct reports that include sensitive or personal details.
