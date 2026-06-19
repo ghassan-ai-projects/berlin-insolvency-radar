@@ -31,6 +31,7 @@
 
 Completed in code on 2026-06-19:
 
+- P0.1 Green the full repo gate with `make check`
 - P0.2 Add explicit live runtime modes
 - P0.3 Add stage-level run reporting
 - P0.4 Harden model timeout/failure classification
@@ -42,12 +43,11 @@ Completed in code on 2026-06-19:
 - P1.x Enrichment source config upgraded from boolean flags to per-source contracts
 - P2.1 Tighten workflow typing
 - P2.2 Improve MCP/application boundary
+- P2.3 Build extraction/compliance eval set
 
 Still remaining:
 
-- P0.1 Green the full repo gate with `make check`
 - P1.3 Add Unternehmensregister runtime adapter
-- P2.3 extraction/compliance eval-set work
 - P3.1 recurring issue production and market validation
 
 ## P0

@@ -120,6 +120,14 @@ This reduces graph drift and makes future MCP and evaluation work less fragile.
 
 This closes a real boundary bug class: published tool shapes and executed validation logic can no longer drift independently.
 
+### 12. The repo now has a small extraction/compliance eval corpus
+
+- a fixture corpus now exists for representative notices
+- extraction parsing is checked against expected structured payloads
+- compliance outcomes are asserted from the same corpus
+
+This is the first quality harness that validates semantic expectations instead of only runtime survival.
+
 ## Live Validation
 
 ### Confirmed working with real data

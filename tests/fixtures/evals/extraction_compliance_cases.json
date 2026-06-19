@@ -1,0 +1,80 @@
+[
+  {
+    "case_id": "corporate_gmbh_opening_order",
+    "source_url": "https://neu.insolvenzbekanntmachungen.de/example/gmbh",
+    "raw_text": "Amtsgericht Charlottenburg, Aktenzeichen 36e IN 123/26. In dem Insolvenzverfahren über das Vermögen der Musterwerk GmbH, Berlin, wurde am 2026-06-15 die vorläufige Insolvenzverwaltung angeordnet.",
+    "expected_extraction": {
+      "company_name": "Musterwerk GmbH",
+      "legal_form": "GmbH",
+      "court": "Amtsgericht Charlottenburg",
+      "case_number": "36e IN 123/26",
+      "filing_date": "2026-06-15",
+      "proceeding_stage": "vorläufige Insolvenzverwaltung",
+      "is_consumer_likely": false,
+      "field_confidence_scores": {
+        "company_name": 0.98,
+        "legal_form": 0.97
+      },
+      "evidence_snippets": {
+        "company_name": "Musterwerk GmbH",
+        "case_number": "36e IN 123/26"
+      }
+    },
+    "expected_compliance": {
+      "allowed": true,
+      "reason": null
+    }
+  },
+  {
+    "case_id": "corporate_se_case",
+    "source_url": "https://neu.insolvenzbekanntmachungen.de/example/se",
+    "raw_text": "Amtsgericht Berlin (Charlottenburg), Aktenzeichen 36f IN 456/26. Das Insolvenzverfahren betreffend Trendhandel SE, Berlin, wurde eröffnet.",
+    "expected_extraction": {
+      "company_name": "Trendhandel SE",
+      "legal_form": "SE",
+      "court": "Amtsgericht Berlin (Charlottenburg)",
+      "case_number": "36f IN 456/26",
+      "filing_date": "2026-06-18",
+      "proceeding_stage": "eröffnet",
+      "is_consumer_likely": false,
+      "field_confidence_scores": {
+        "company_name": 0.96,
+        "legal_form": 0.95
+      },
+      "evidence_snippets": {
+        "company_name": "Trendhandel SE",
+        "case_number": "36f IN 456/26"
+      }
+    },
+    "expected_compliance": {
+      "allowed": true,
+      "reason": null
+    }
+  },
+  {
+    "case_id": "sole_proprietor_rejected",
+    "source_url": "https://neu.insolvenzbekanntmachungen.de/example/ek",
+    "raw_text": "In dem Verbraucherinsolvenzverfahren über das Vermögen des eingetragenen Kaufmanns Jonas Beispiel e.K., Berlin, Aktenzeichen 12 IK 88/26, wurde ein Termin bestimmt.",
+    "expected_extraction": {
+      "company_name": "Jonas Beispiel e.K.",
+      "legal_form": "e.K.",
+      "court": "Amtsgericht Berlin",
+      "case_number": "12 IK 88/26",
+      "filing_date": "2026-06-11",
+      "proceeding_stage": "Termin bestimmt",
+      "is_consumer_likely": true,
+      "field_confidence_scores": {
+        "company_name": 0.9,
+        "legal_form": 0.94
+      },
+      "evidence_snippets": {
+        "company_name": "Jonas Beispiel e.K.",
+        "case_number": "12 IK 88/26"
+      }
+    },
+    "expected_compliance": {
+      "allowed": false,
+      "reason": "consumer_or_personal_indicator_detected"
+    }
+  }
+]
