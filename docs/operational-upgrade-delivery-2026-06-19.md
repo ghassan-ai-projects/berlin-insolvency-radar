@@ -63,6 +63,15 @@ These supplement the existing sources with better public company identity and se
 
 This closes an important contract gap: source-specific enrichment evidence now survives beyond a single workflow run.
 
+### 7. Enrichment source architecture is now modular
+
+- `biradar.sources.enrichment` is now a package, not a single monolith
+- runtime/client concerns live in dedicated modules
+- the orchestrator is separate from the source adapters
+- each source now has its own adapter module
+
+This reduces the cost of adding or replacing sources and makes the source layer easier to reason about and test.
+
 ## Live Validation
 
 ### Confirmed working with real data
@@ -99,9 +108,8 @@ This is the first version that looks like a maintainable product core rather tha
 The next design areas to improve are:
 
 1. Add bounded retry and circuit-breaker behavior for live extraction/review calls.
-2. Push source adapters into separate modules under a dedicated enrichment package.
-3. Add a small evaluation set for extraction quality, not only runtime correctness.
-4. Strengthen workflow typing so state contracts are less `dict`-shaped.
+2. Add a small evaluation set for extraction quality, not only runtime correctness.
+3. Strengthen workflow typing so state contracts are less `dict`-shaped.
 
 ## Commit Sequence
 

@@ -27,7 +27,7 @@ class TestEnrichCandidateModes:
     def test_returns_disabled_result_when_config_disabled(self, monkeypatch):
         _get_enrichment_config.cache_clear()
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_enrichment_config",
+            "biradar.sources.enrichment.orchestrator._get_enrichment_config",
             lambda: type("Cfg", (), {"enabled": False, "delay_between_sources": 0.0})(),
         )
         result = enrich_candidate("Test GmbH")
@@ -47,7 +47,7 @@ class TestEnrichCandidateLiveMode:
 
     def test_all_sources_succeed(self, monkeypatch):
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_enrichment_config",
+            "biradar.sources.enrichment.orchestrator._get_enrichment_config",
             lambda: type(
                 "Cfg",
                 (),
@@ -85,7 +85,7 @@ class TestEnrichCandidateLiveMode:
             }
 
         monkeypatch.setattr(
-            "biradar.sources.enrichment._resolve_enrichment_sources",
+            "biradar.sources.enrichment.orchestrator._resolve_enrichment_sources",
             lambda: [
                 EnrichmentSourceDefinition("bundesanzeiger", mock_b),
                 EnrichmentSourceDefinition("github", mock_gh),
@@ -106,7 +106,7 @@ class TestEnrichCandidateLiveMode:
 
     def test_source_failure_isolation(self, monkeypatch):
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_enrichment_config",
+            "biradar.sources.enrichment.orchestrator._get_enrichment_config",
             lambda: type(
                 "Cfg",
                 (),
@@ -131,7 +131,7 @@ class TestEnrichCandidateLiveMode:
             }
 
         monkeypatch.setattr(
-            "biradar.sources.enrichment._resolve_enrichment_sources",
+            "biradar.sources.enrichment.orchestrator._resolve_enrichment_sources",
             lambda: [
                 EnrichmentSourceDefinition("bundesanzeiger", failing_bundesanzeiger),
                 EnrichmentSourceDefinition("github", empty_github),
@@ -148,7 +148,7 @@ class TestEnrichCandidateLiveMode:
 
     def test_no_sources_return_data(self, monkeypatch):
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_enrichment_config",
+            "biradar.sources.enrichment.orchestrator._get_enrichment_config",
             lambda: type(
                 "Cfg",
                 (),
@@ -156,7 +156,7 @@ class TestEnrichCandidateLiveMode:
             )(),
         )
         monkeypatch.setattr(
-            "biradar.sources.enrichment._resolve_enrichment_sources",
+            "biradar.sources.enrichment.orchestrator._resolve_enrichment_sources",
             lambda: [
                 EnrichmentSourceDefinition(
                     "bundesanzeiger", lambda _company_name: None
@@ -174,7 +174,7 @@ class TestEnrichCandidateLiveMode:
 
     def test_returns_clear_error_when_no_sources_enabled(self, monkeypatch):
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_enrichment_config",
+            "biradar.sources.enrichment.orchestrator._get_enrichment_config",
             lambda: type(
                 "Cfg",
                 (),
@@ -182,7 +182,7 @@ class TestEnrichCandidateLiveMode:
             )(),
         )
         monkeypatch.setattr(
-            "biradar.sources.enrichment._resolve_enrichment_sources", list
+            "biradar.sources.enrichment.orchestrator._resolve_enrichment_sources", list
         )
 
         result = enrich_candidate("Unknown GmbH")
@@ -277,14 +277,18 @@ class TestDnsResolves:
         def succeeds(*_args, **_kwargs):
             return [("ok",)]
 
-        monkeypatch.setattr("biradar.sources.enrichment.socket.getaddrinfo", succeeds)
+        monkeypatch.setattr(
+            "biradar.sources.enrichment.website.socket.getaddrinfo", succeeds
+        )
         assert _dns_resolves("example.com") is True
 
     def test_invalid_domain(self, monkeypatch):
         def fail(*_args, **_kwargs):
             raise socket.gaierror("dns failed")
 
-        monkeypatch.setattr("biradar.sources.enrichment.socket.getaddrinfo", fail)
+        monkeypatch.setattr(
+            "biradar.sources.enrichment.website.socket.getaddrinfo", fail
+        )
         assert _dns_resolves("does-not-exist.invalid") is False
 
 
@@ -344,7 +348,7 @@ class TestAdditionalSources:
                 raise AssertionError(f"Unexpected URL: {url}")
 
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_client", lambda: FakeClient()
+            "biradar.sources.enrichment.north_data._get_client", lambda: FakeClient()
         )
         result = lookup_north_data("Example GmbH")
         assert result is not None
@@ -409,7 +413,7 @@ class TestAdditionalSources:
                 raise AssertionError(f"Unexpected params: {params}")
 
         monkeypatch.setattr(
-            "biradar.sources.enrichment._get_client", lambda: FakeClient()
+            "biradar.sources.enrichment.wikidata._get_client", lambda: FakeClient()
         )
         result = lookup_wikidata("Example GmbH")
         assert result is not None
