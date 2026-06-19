@@ -72,6 +72,18 @@ This closes an important contract gap: source-specific enrichment evidence now s
 
 This reduces the cost of adding or replacing sources and makes the source layer easier to reason about and test.
 
+### 8. LLM calls now use bounded retry and classified failures
+
+- extraction and risk review now share bounded retry behavior
+- transient timeouts and malformed responses can be retried
+- stable error classes are now distinguished:
+  - `*_MODEL_TIMEOUT`
+  - `*_MODEL_INVALID_RESPONSE`
+  - `*_MODEL_AUTH_ERROR`
+  - `*_MODEL_ERROR`
+
+This improves the operational behavior of the full-live path even though the model stage still needs more real-world burn-in.
+
 ## Live Validation
 
 ### Confirmed working with real data

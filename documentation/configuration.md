@@ -18,6 +18,8 @@
 | `BIRADAR_LLM_BASE_URL` | No | *(none)* | Custom OpenAI-compatible base URL |
 | `BIRADAR_LLM_PROVIDER` | No | `openai_compatible` | Provider label used for runtime reporting |
 | `BIRADAR_LLM_TIMEOUT_SECONDS` | No | `30` | Shared timeout for extraction and risk review |
+| `BIRADAR_LLM_MAX_RETRIES` | No | `1` | Bounded retry count for transient LLM failures |
+| `BIRADAR_LLM_RETRY_BACKOFF_SECONDS` | No | `1.5` | Linear backoff multiplier between LLM retry attempts |
 | `DEEPSEEK_API_KEY` | Backward-compatible fallback | *(none)* | Legacy DeepSeek API key |
 | `DEEPSEEK_API_BASE` | No | `https://api.deepseek.com/v1` | Legacy DeepSeek API base URL |
 | `DEEPSEEK_MODEL` | No | `deepseek-chat` | Legacy DeepSeek model name |
