@@ -14,6 +14,7 @@ from biradar.agents.extraction import ExtractionResult
 from biradar.agents.risk_review import RiskReviewResult
 from biradar.config.settings import get_settings, load_config
 from biradar.graph.checkpoints import CheckpointManager
+from biradar.graph.state import build_initial_pipeline_state
 from biradar.graph.pipeline_workflow import build_pipeline_workflow
 from biradar.observability.logging import get_logger
 from biradar.sources.enrichment import EnrichmentResult, _reset_disabled_sources
@@ -581,20 +582,11 @@ def run_pipeline(
                 "stage_report": stage_report,
             }
 
-        initial_state = {
-            "source_run_id": source_run_id,
-            "raw_records": raw_records,
-            "already_processed_raw_ids": already_processed_ids,
-            "candidates": [],
-            "extraction_results": {},
-            "enrichment_results": {},
-            "scores": {},
-            "risk_reviews": {},
-            "retry_counts": {},
-            "current_step": "ingest",
-            "errors": [],
-            "warnings": [],
-        }
+        initial_state = build_initial_pipeline_state(
+            source_run_id=source_run_id,
+            raw_records=raw_records,
+            already_processed_raw_ids=already_processed_ids,
+        )
         invocation_config = {
             "configurable": {
                 "thread_id": thread_id,

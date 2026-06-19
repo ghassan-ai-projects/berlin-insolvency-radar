@@ -98,6 +98,18 @@ This improves the operational behavior of the full-live path even though the mod
 
 This matters because product expansion is now a configuration contract, not an orchestrator rewrite.
 
+### 10. Workflow state is now a named contract rather than an implicit dict blob
+
+- pipeline state now names:
+  - candidate records
+  - extraction payloads
+  - enrichment stage results
+  - score payloads
+  - risk review payloads
+- the pipeline startup path now uses one canonical state builder
+
+This reduces graph drift and makes future MCP and evaluation work less fragile.
+
 ## Live Validation
 
 ### Confirmed working with real data

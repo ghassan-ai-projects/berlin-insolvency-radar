@@ -40,12 +40,14 @@ Completed in code on 2026-06-19:
 - P1.5 Normalize source-claim storage
 - P1.4 partially superseded by `north_data` and `wikidata` source additions
 - P1.x Enrichment source config upgraded from boolean flags to per-source contracts
+- P2.1 Tighten workflow typing
 
 Still remaining:
 
 - P0.1 Green the full repo gate with `make check`
 - P1.3 Add Unternehmensregister runtime adapter
-- P2.x typing, MCP boundary, and eval-set work
+- P2.2 MCP boundary improvements
+- P2.3 extraction/compliance eval-set work
 - P3.1 recurring issue production and market validation
 
 ## P0

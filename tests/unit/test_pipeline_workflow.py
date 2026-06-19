@@ -8,7 +8,7 @@ from biradar.graph.pipeline_workflow import (
     enrichment_node,
     risk_review_node,
 )
-from biradar.graph.state import PipelineWorkflowState
+from biradar.graph.state import PipelineWorkflowState, build_initial_pipeline_state
 from biradar.sources.enrichment import EnrichmentResult
 
 
@@ -38,20 +38,13 @@ def test_pipeline_workflow_builds_successfully():
 
 
 def test_pipeline_workflow_initial_state():
-    initial_state: PipelineWorkflowState = {
-        "source_run_id": "test_run_123",
-        "raw_records": [],
-        "candidates": [],
-        "extraction_results": {},
-        "enrichment_results": {},
-        "scores": {},
-        "risk_reviews": {},
-        "retry_counts": {},
-        "errors": [],
-        "warnings": [],
-        "current_step": "ingest",
-    }
+    initial_state = build_initial_pipeline_state(
+        source_run_id="test_run_123",
+        raw_records=[],
+        already_processed_raw_ids=["raw_1"],
+    )
     assert initial_state["source_run_id"] == "test_run_123"
+    assert initial_state["already_processed_raw_ids"] == ["raw_1"]
     assert initial_state["current_step"] == "ingest"
 
 

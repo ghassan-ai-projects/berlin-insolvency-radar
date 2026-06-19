@@ -14,7 +14,13 @@ from biradar.config.settings import get_settings, load_config
 from biradar.domain.compliance import evaluate_compliance
 from biradar.domain.dedupe import deduplicate_candidates
 from biradar.domain.scoring import ScoreInput, compute_score
-from biradar.graph.state import PipelineWorkflowState
+from biradar.graph.state import (
+    EnrichmentClaimPayload,
+    ExtractionPayload,
+    PipelineWorkflowState,
+    RiskReviewPayload,
+    ScorePayload,
+)
 from biradar.output.export import generate_json_package, generate_markdown_draft
 from biradar.sources.enrichment import enrich_candidate
 
@@ -25,9 +31,9 @@ RiskReviewerFn = Callable[[dict[str, Any], dict[str, Any], dict[str, Any], str],
 EnricherFn = Callable[[str], Any]
 
 
-def _build_enrichment_claims(result: Any) -> list[dict[str, Any]]:
+def _build_enrichment_claims(result: Any) -> list[EnrichmentClaimPayload]:
     """Build claim rows from an enrichment result."""
-    claims: list[dict[str, Any]] = []
+    claims: list[EnrichmentClaimPayload] = []
     for src in result.sources:
         source_name = src.get("source", "unknown")
         source_url = src.get("url") or src.get("source_url") or None
@@ -159,7 +165,7 @@ def extraction_node(
 ) -> PipelineWorkflowState:
     """Structured extraction of filing facts."""
     logger.info("Executing extraction node")
-    extraction_results: dict[str, dict[str, Any]] = dict(
+    extraction_results: dict[str, ExtractionPayload] = dict(
         state.get("extraction_results", {})
     )
     errors = list(state.get("errors", []))
@@ -201,12 +207,10 @@ def enrichment_node(
 ) -> PipelineWorkflowState:
     """Enrichment for candidates that passed scoring. Low-score candidates skip this."""
     logger.info("Executing enrichment node")
-    enrichment_results: dict[str, dict[str, Any]] = dict(
-        state.get("enrichment_results", {})
-    )
+    enrichment_results = dict(state.get("enrichment_results", {}))
 
     for candidate in state["candidates"]:
-        if candidate["status"] == "quarantined":
+        if candidate.get("status") == "quarantined":
             continue
 
         candidate_id = candidate.get("candidate_id", "unknown")
@@ -260,10 +264,10 @@ def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
     logger.info("Executing scoring node")
     settings = get_settings()
     config = load_config(settings.project_root / "config")
-    scores: dict[str, dict[str, Any]] = dict(state.get("scores", {}))
+    scores: dict[str, ScorePayload] = dict(state.get("scores", {}))
 
     for candidate in state["candidates"]:
-        if candidate["status"] == "quarantined":
+        if candidate.get("status") == "quarantined":
             continue
 
         candidate_id = candidate.get("candidate_id", "unknown")
@@ -276,7 +280,7 @@ def scoring_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
             result = compute_score(
                 proposed_scores, config.scoring.weights, config.scoring.thresholds
             )
-            score_payload = {
+            score_payload: ScorePayload = {
                 "company_value": proposed_scores.company_value,
                 "asset_quality": proposed_scores.asset_quality,
                 "sector_attractiveness": proposed_scores.sector_attractiveness,
@@ -311,7 +315,7 @@ def risk_review_node(
     logger.info("Executing risk review node")
 
     retry_counts = dict(state.get("retry_counts", {}))
-    risk_reviews = dict(state.get("risk_reviews", {}))
+    risk_reviews: dict[str, RiskReviewPayload] = dict(state.get("risk_reviews", {}))
     warnings = list(state.get("warnings", []))
     errors = list(state.get("errors", []))
     needs_retry = False
@@ -448,7 +452,7 @@ def draft_assembly_node(state: PipelineWorkflowState) -> PipelineWorkflowState:
         if candidate.get("status") != "publish_ready":
             continue
 
-        candidate_id = candidate["candidate_id"]
+        candidate_id = candidate.get("candidate_id", "unknown")
         score_payload = state.get("scores", {}).get(candidate_id)
         extraction_payload = state.get("extraction_results", {}).get(candidate_id, {})
         evidence_snippets = extraction_payload.get("evidence_snippets", {})
