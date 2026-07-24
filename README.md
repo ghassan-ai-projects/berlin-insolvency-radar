@@ -1,5 +1,7 @@
 # Berlin Insolvency Radar
 
+> **Author:** [Ghassan Alhamoud](https://ghassan-alhamoud.com)
+
 AI-powered insolvency intelligence for Berlin. Monitors official insolvency filings,
 extracts structured facts, scores investment opportunities, and produces a ranked
 weekly newsletter — all through a typed MCP API.
