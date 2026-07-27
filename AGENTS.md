@@ -107,14 +107,24 @@ cli/  →  mcp/  →  services/  →  graph/  →  agents/  →  domain/
 
 Use the commands that actually exist in this repo:
 
-- `make format` — `ruff format src/biradar tests`
-- `make format-check` — `ruff format --check src/biradar tests`
-- `make lint` — `ruff check src/biradar tests`
+- `make format` — `ruff format src/biradar tests scripts`
+- `make format-check` — `ruff format --check src/biradar tests scripts`
+- `make lint` — `ruff check src/biradar tests scripts`
+
+These paths (`PY_PATHS` in the Makefile) must stay equal to what the pre-commit
+ruff hooks see. Scoping them narrower is how `scripts/` drifted out of format
+and broke CI while `make check` stayed green.
 - `make typecheck` — `pyright src/biradar`
 - `make test` — unit tests with coverage
 - `make test-acceptance` — acceptance tests with coverage
 - `make test-e2e` — E2E tests (excludes `@pytest.mark.live`)
-- `make check` — `format-check lint typecheck test test-acceptance test-e2e`
+- `make pre-commit` — `pre-commit run --all-files --show-diff-on-failure`
+- `make coverage` — combined run across all three suites, then per-layer target enforcement
+- `make audit` — `pip-audit` over the locked runtime dependency set
+- `make check` — `pre-commit format-check lint typecheck test test-acceptance test-e2e coverage audit`
+
+`make check` is a superset of CI. CI invokes these same Make targets, so the two
+cannot drift; do not add a step to the workflow without adding it here too.
 
 If a change is substantial, run `make check`. For targeted or docs-only work,
 run the narrowest checks that prove the change is correct and call out anything skipped.
@@ -131,14 +141,23 @@ Requirements:
 - `make test` must pass before a production-code change is considered complete.
 - Modified packages must show non-zero coverage.
 
-Coverage targets by layer:
+Coverage targets by layer (enforced by `make coverage`):
 
 - `domain/` — 95%+
 - `agents/`, `output/` — 50%+ (LLM-dependent modules; mock coverage)
 - `services/` — 85%+
 - `storage/` — 70%+
 - `graph/` — 75%+
-- `mcp/`, `cli/` — best effort
+- `mcp/`, `cli/` — best effort (reported, not enforced)
+
+These are enforced by `scripts/check_coverage.py`, which reads `coverage.json`
+and checks each layer separately — a single global `--cov-fail-under` would let
+a well-covered layer mask a bare one. The thresholds live in `LAYER_TARGETS` in
+that script; change them there and here together.
+
+Measure with `make coverage`, never a single suite. `make test` alone reports
+`services/` far below its real figure because acceptance and E2E cover much of
+that layer, and each suite's run overwrites `.coverage`.
 
 ## Repository Rules
 

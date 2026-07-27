@@ -22,6 +22,9 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: trim trailing whitespace
+        # Two trailing spaces are a hard line break in Markdown. Stripping them
+        # rewrote docs under CI and failed the run; preserve them in .md only.
+        args: ['--markdown-linebreak-ext=md']
       - id: end-of-file-fixer
         name: ensure files end with newline
       - id: check-yaml

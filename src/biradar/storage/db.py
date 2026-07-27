@@ -249,6 +249,19 @@ class Database:
         return row[0] if row else "unmigrated"
 
 
+def scalar_count(conn: duckdb.DuckDBPyConnection, sql: str) -> int:
+    """Run an aggregate query and return its single scalar result.
+
+    ``fetchone()`` is typed as Optional, which is correct in general but never
+    the case for an aggregate. This narrows the type once here instead of
+    suppressing reportOptionalSubscript across the codebase.
+    """
+    row = conn.execute(sql).fetchone()
+    if row is None:
+        raise RuntimeError(f"Aggregate query returned no row: {sql}")
+    return int(row[0])
+
+
 def compute_content_hash(data: str | bytes) -> str:
     """Compute SHA-256 hash of string or bytes."""
     if isinstance(data, str):

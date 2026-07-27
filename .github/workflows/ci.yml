@@ -2,6 +2,9 @@
 #
 # Runs on push/PR to main.
 # Pipeline: pre-commit → format → lint → typecheck → unit tests → acceptance tests → e2e tests
+#
+# Steps invoke the Makefile targets rather than re-spelling the commands, so that
+# `make check` locally and CI cannot drift apart.
 
 name: CI
 
@@ -10,6 +13,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.12"
@@ -18,53 +30,92 @@ jobs:
   lint:
     name: "Lint & Typecheck"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # Pinned to an exact tag: setup-uv publishes no floating v8/v9 major tag
+        # (only up to v7), so `@v9` does not resolve. Dependabot bumps this.
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
 
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
       - name: Pre-commit hooks
-        run: uv run pre-commit run --all-files --show-diff-on-failure
+        run: make pre-commit
 
       - name: Format check
-        run: uv run ruff format --check src/biradar tests
+        run: make format-check
 
       - name: Lint
-        run: uv run ruff check src/biradar tests
+        run: make lint
 
       - name: Typecheck
-        run: uv run pyright src/biradar
+        run: make typecheck
+
+  audit:
+    name: "Dependency Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # Audits the locked runtime dependency set, not the resolver's latest
+      # picks, so the result matches what actually ships.
+      - name: Audit locked dependencies
+        run: make audit
 
   test:
     name: "Tests"
     runs-on: ubuntu-latest
     needs: lint
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # Pinned to an exact tag: setup-uv publishes no floating v8/v9 major tag
+        # (only up to v7), so `@v9` does not resolve. Dependabot bumps this.
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
 
       - name: Unit tests
-        run: uv run pytest tests/unit --cov=src/biradar --cov-report=term-missing --timeout=30
+        run: make test
 
       - name: Acceptance tests
-        run: uv run pytest tests/acceptance --cov=src/biradar --cov-report=term-missing --timeout=30
+        run: make test-acceptance
 
       - name: E2E tests (excluding live)
-        run: uv run pytest tests/e2e -m "not live" --cov=src/biradar --cov-report=term-missing --timeout=30
+        run: make test-e2e
+
+      # Re-runs the suites as one process; the per-suite steps above each
+      # overwrite .coverage, so only this run can be checked per layer.
+      - name: Per-layer coverage targets
+        run: make coverage

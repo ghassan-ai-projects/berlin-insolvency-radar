@@ -35,7 +35,7 @@ cp .env.example .env
 ### Verify (code quality, no network)
 
 ```bash
-make check          # format, lint, typecheck, unit + acceptance + e2e tests
+make check          # pre-commit, format, lint, typecheck, unit + acceptance + e2e tests
 ```
 
 No `.env` or API key needed — tests use fixtures and stubs exclusively.

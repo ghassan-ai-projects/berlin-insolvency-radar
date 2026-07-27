@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, NotRequired, TypedDict
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 
 class ImportWorkflowState(TypedDict):
@@ -158,13 +159,19 @@ class PipelineWorkflowState(TypedDict):
 def build_initial_pipeline_state(
     *,
     source_run_id: str,
-    raw_records: list[CandidateRecord],
+    raw_records: Sequence[Mapping[str, Any]],
     already_processed_raw_ids: list[str] | None = None,
 ) -> PipelineWorkflowState:
-    """Build the canonical initial pipeline state."""
+    """Build the canonical initial pipeline state.
+
+    Records arrive as plain dicts from the repository and adapters. The cast is
+    the one explicit boundary where they are declared to satisfy CandidateRecord,
+    rather than disabling assignment checks across the codebase.
+    """
+    records = cast(list[CandidateRecord], list(raw_records))
     return {
         "source_run_id": source_run_id,
-        "raw_records": raw_records,
+        "raw_records": records,
         "already_processed_raw_ids": already_processed_raw_ids or [],
         "candidates": [],
         "extraction_results": {},

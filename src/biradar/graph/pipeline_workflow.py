@@ -1,8 +1,17 @@
 """Agentic LangGraph workflow for the production pipeline."""
 
+# pyright: reportArgumentType=false, reportReturnType=false
+#
+# Scoped to this module. Two upstream limitations, neither first-party:
+#   * `{**state, ...}` over a TypedDict widens to a plain dict, so every node
+#     return is reported as not assignable to PipelineWorkflowState.
+#   * StateGraph.add_node passes an unbound NodeInputT that does not resolve to
+#     the concrete state type.
+# Keep these off only here; the rules stay enabled everywhere else.
+
 import logging
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -27,7 +36,9 @@ from biradar.sources.enrichment import enrich_candidate
 logger = logging.getLogger(__name__)
 
 ExtractorFn = Callable[[str, str], Any]
-RiskReviewerFn = Callable[[dict[str, Any], dict[str, Any], dict[str, Any], str], Any]
+RiskReviewerFn = Callable[
+    [Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], str], Any
+]
 EnricherFn = Callable[[str], Any]
 
 
@@ -65,8 +76,8 @@ def _build_enrichment_claims(result: Any) -> list[EnrichmentClaimPayload]:
 
 
 def _build_score_input(
-    candidate: dict[str, Any],
-    extraction_data: dict[str, Any],
+    candidate: Mapping[str, Any],
+    extraction_data: Mapping[str, Any],
 ) -> ScoreInput:
     """Build deterministic score dimensions from extraction evidence only.
 

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from biradar.config.settings import load_config
 from biradar.mcp.server import create_mcp_server, list_radar_tools
-from biradar.services.pipeline import run_pipeline, run_pipeline_check
+from biradar.services.pipeline import RunMode, run_pipeline, run_pipeline_check
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -188,11 +188,12 @@ def main() -> None:
 
             start_date = date.fromisoformat(args.start_date)
             end_date = date.fromisoformat(args.end_date)
-            run_mode = {
+            run_modes: dict[str, RunMode] = {
                 "live-smoke-portal": "portal_only",
                 "live-smoke-stubbed": "portal_with_stubs",
                 "live-smoke-full": "full_live",
-            }[command]
+            }
+            run_mode = run_modes[command]
             result = run_pipeline(
                 start_date=start_date,
                 end_date=end_date,

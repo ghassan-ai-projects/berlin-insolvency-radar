@@ -34,7 +34,7 @@
 make test              # Unit tests
 make test-acceptance   # Acceptance tests
 make test-e2e          # E2E (excludes live)
-make check             # Format + lint + typecheck + unit + acceptance + non-live E2E
+make check             # Pre-commit + format + lint + typecheck + unit + acceptance + non-live E2E
 
 # Live E2E (requires DEEPSEEK_API_KEY)
 uv run pytest tests/e2e -m "live" -v

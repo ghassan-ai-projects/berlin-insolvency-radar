@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 
 from biradar.observability.logging import get_logger
 from biradar.storage.repository import RawRecordRepository, SourceRunRepository
+from biradar.utils.html import attr_str
 
 logger = get_logger(__name__)
 
@@ -88,13 +89,13 @@ class JSFSession:
         if search_form is None:
             raise RuntimeError("Search form frm_suche not found on official portal")
 
-        action = search_form.get("action")
+        action = attr_str(search_form, "action")
         if action:
             self.form_action = urljoin(PORTAL_URL, action)
 
         view_state_input = search_form.find("input", {"name": self.view_state_field})
-        if view_state_input and view_state_input.get("value"):
-            self.view_state = view_state_input.get("value")
+        if view_state_input and attr_str(view_state_input, "value"):
+            self.view_state = attr_str(view_state_input, "value")
             logger.debug("Extracted jakarta.faces.ViewState")
         else:
             raise RuntimeError("Could not extract jakarta.faces.ViewState")
@@ -430,7 +431,7 @@ class OfficialPortalAdapter:
         grouped_fields: dict[str, dict[str, str]] = {}
 
         for node in soup.find_all(id=re.compile(r"tbl_ergebnis:\d+:otx_")):
-            node_id = node.get("id", "")
+            node_id = attr_str(node, "id", "") or ""
             match = re.match(r"tbl_ergebnis:(\d+):otx_([^:]+)", node_id)
             if not match:
                 continue

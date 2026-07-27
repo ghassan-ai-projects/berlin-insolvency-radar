@@ -1,10 +1,17 @@
 """Service entrypoints for the production workflow pipeline."""
 
+# pyright: reportArgumentType=false
+#
+# Scoped to this module for LangGraph's RunnableConfig, which is typed too
+# narrowly upstream to accept the plain `{"configurable": {...}}` dict its own
+# documentation prescribes.
+
 import hashlib
 import json
 import tempfile
 import uuid
 from asyncio import run as asyncio_run
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from pathlib import Path
 from time import perf_counter
@@ -19,7 +26,7 @@ from biradar.graph.state import build_initial_pipeline_state
 from biradar.observability.logging import get_logger
 from biradar.sources.enrichment import EnrichmentResult, _reset_disabled_sources
 from biradar.sources.official_portal import OfficialPortalAdapter
-from biradar.storage.db import Database
+from biradar.storage.db import Database, scalar_count
 from biradar.storage.repository import (
     AuditRepository,
     CandidateRepository,
@@ -116,9 +123,9 @@ def _stub_extractor(raw_text: str, source_url: str) -> ExtractionResult:
 
 
 def _stub_risk_reviewer(
-    candidate_data: dict[str, Any],
-    extraction_data: dict[str, Any],
-    enrichment_data: dict[str, Any],
+    candidate_data: Mapping[str, Any],
+    extraction_data: Mapping[str, Any],
+    enrichment_data: Mapping[str, Any],
     draft_thesis: str,
 ) -> RiskReviewResult:
     return RiskReviewResult(
@@ -427,6 +434,7 @@ def run_pipeline(
 
     try:
         fetch_started_at = _start_stage(stage_report, "fetch")
+        raw_records: list[dict[str, Any]]
         if dry_run:
             source_run_id, raw_records = _load_fixture_records(settings)
         elif effective_source_mode == "fixture":
@@ -520,9 +528,7 @@ def run_pipeline(
         if not dry_run:
             AuditRepository(db).log_event(
                 actor="system:pipeline",
-                action="pipeline_acquisition_completed"
-                if raw_records is not None
-                else "pipeline_acquisition_attempted",
+                action="pipeline_acquisition_completed",
                 entity_type="source_run",
                 entity_id=source_run_id,
                 request_data={
@@ -683,19 +689,18 @@ def run_pipeline_check() -> dict[str, Any]:
         db = Database(db_path)
         try:
             counts = {
-                "source_runs": db.conn.execute(
-                    "SELECT COUNT(*) FROM source_runs"
-                ).fetchone()[0],
-                "raw_records": db.conn.execute(
-                    "SELECT COUNT(*) FROM raw_records"
-                ).fetchone()[0],
-                "candidates": db.conn.execute(
-                    "SELECT COUNT(*) FROM candidates"
-                ).fetchone()[0],
-                "publish_ready": db.conn.execute(
-                    "SELECT COUNT(*) FROM candidates WHERE status = 'publish_ready'"
-                ).fetchone()[0],
-                "issues": db.conn.execute("SELECT COUNT(*) FROM issues").fetchone()[0],
+                "source_runs": scalar_count(
+                    db.conn, "SELECT COUNT(*) FROM source_runs"
+                ),
+                "raw_records": scalar_count(
+                    db.conn, "SELECT COUNT(*) FROM raw_records"
+                ),
+                "candidates": scalar_count(db.conn, "SELECT COUNT(*) FROM candidates"),
+                "publish_ready": scalar_count(
+                    db.conn,
+                    "SELECT COUNT(*) FROM candidates WHERE status = 'publish_ready'",
+                ),
+                "issues": scalar_count(db.conn, "SELECT COUNT(*) FROM issues"),
             }
         finally:
             db.close()
