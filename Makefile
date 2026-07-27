@@ -1,12 +1,16 @@
 .PHONY: check verify format format-check lint typecheck test test-integration test-acceptance test-e2e pre-commit clean
 
-UV_RUN=UV_CACHE_DIR=.uv-cache uv run
+# Conditional so CI can inherit the cache directory exported by astral-sh/setup-uv
+# instead of writing to a repo-local cache the runner never restores.
+UV_CACHE_DIR ?= .uv-cache
+UV_RUN=UV_CACHE_DIR=$(UV_CACHE_DIR) uv run
 
+# `verify` must stay a superset of what CI runs, or green locally means nothing.
 check: verify
-verify: format-check lint typecheck test test-acceptance test-e2e
+verify: pre-commit format-check lint typecheck test test-acceptance test-e2e
 
 pre-commit:
-	$(UV_RUN) pre-commit run --all-files
+	$(UV_RUN) pre-commit run --all-files --show-diff-on-failure
 
 format:
 	$(UV_RUN) ruff format src/biradar tests

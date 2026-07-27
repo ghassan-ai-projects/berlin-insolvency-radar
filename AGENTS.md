@@ -114,7 +114,11 @@ Use the commands that actually exist in this repo:
 - `make test` — unit tests with coverage
 - `make test-acceptance` — acceptance tests with coverage
 - `make test-e2e` — E2E tests (excludes `@pytest.mark.live`)
-- `make check` — `format-check lint typecheck test test-acceptance test-e2e`
+- `make pre-commit` — `pre-commit run --all-files --show-diff-on-failure`
+- `make check` — `pre-commit format-check lint typecheck test test-acceptance test-e2e`
+
+`make check` is a superset of CI. CI invokes these same Make targets, so the two
+cannot drift; do not add a step to the workflow without adding it here too.
 
 If a change is substantial, run `make check`. For targeted or docs-only work,
 run the narrowest checks that prove the change is correct and call out anything skipped.

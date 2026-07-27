@@ -36,13 +36,9 @@ Run before opening a PR:
 make check
 ```
 
-For larger feature work, also run:
-
-```bash
-make lint
-make typecheck
-make test-e2e
-```
+This runs pre-commit, format, lint, typecheck, and the unit, acceptance, and
+non-live E2E suites. CI runs the same Make targets, so a green `make check` is a
+green pipeline.
 
 ## Pull Request Expectations
 
