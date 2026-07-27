@@ -65,6 +65,26 @@ jobs:
       - name: Typecheck
         run: make typecheck
 
+  audit:
+    name: "Dependency Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # Audits the locked runtime dependency set, not the resolver's latest
+      # picks, so the result matches what actually ships.
+      - name: Audit locked dependencies
+        run: make audit
+
   test:
     name: "Tests"
     runs-on: ubuntu-latest

@@ -73,15 +73,10 @@ pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src/biradar"]
 
-# Third-party library type stub limitations produce false positives.
-# LangChain's ChatOpenAI params, structured_output returns, and response.content
-# types; BeautifulSoup's _AttributeValue; DuckDB's fetchone() return; and
-# LangGraph's RunnableConfig are all inadequately typed in upstream stubs.
-reportCallIssue = false
-reportAttributeAccessIssue = false
-reportReturnType = false
-reportArgumentType = false
-reportOptionalSubscript = false
+# No repo-wide rule suppressions. These rules previously ran off globally to
+# absorb third-party stub gaps, which also silenced first-party defects. The
+# remaining unavoidable cases (LangGraph's add_node generics and RunnableConfig,
+# plus TypedDict spread) carry file-scoped `# pyright:` comments explaining why.
 
 [tool.coverage.run]
 source = ["src/biradar"]

@@ -37,6 +37,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Dependency audit scratch file (make audit)
+.audit-requirements.txt
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

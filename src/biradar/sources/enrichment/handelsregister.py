@@ -79,12 +79,18 @@ def lookup_handelsregister(company_name: str) -> dict[str, str] | None:
         if not any([legal_form, registry_court, registry_number, status]):
             return None
 
-        return {
+        # Unresolved fields are omitted rather than carried as None, so the
+        # returned mapping matches its declared dict[str, str] type. Consumers
+        # read via .get() plus a truthiness check, so absence and None are
+        # equivalent to them.
+        found = {
             "legal_form": legal_form,
             "registry_court": registry_court,
             "registry_number": registry_number,
             "status": status,
-            "source": "handelsregister",
+        }
+        return {k: v for k, v in found.items() if v is not None} | {
+            "source": "handelsregister"
         }
     except Exception as exc:
         logger.warning("Handelsregister lookup failed for '%s': %s", company_name, exc)

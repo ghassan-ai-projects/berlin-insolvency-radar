@@ -75,8 +75,20 @@ class CreateIssueDraftInput(BaseModel):
     @field_validator("week")
     @classmethod
     def validate_week(cls, v: str) -> str:
-        if not re.match(r"^\d{4}-W\d{2}$", v):
+        """Validate both the shape and that the ISO week exists in that year.
+
+        Shape alone would admit '2026-W00' and '2026-W99'. Week 53 is also only
+        valid in long ISO years, so the week is resolved against the year rather
+        than range-checked.
+        """
+        match = re.match(r"^(\d{4})-W(\d{2})$", v)
+        if not match:
             raise ValueError("week must match format 'YYYY-W##' (e.g., '2026-W25')")
+        year, week = int(match.group(1)), int(match.group(2))
+        try:
+            date.fromisocalendar(year, week, 1)
+        except ValueError as exc:
+            raise ValueError(f"'{v}' is not a valid ISO week: {exc}") from exc
         return v
 
 

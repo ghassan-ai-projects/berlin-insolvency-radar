@@ -1,11 +1,17 @@
 """Risk Review Agent for compliance and legal gatekeeping."""
 
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from biradar.agents.llm import build_chat_llm, resolve_llm_config, run_llm_operation
+from biradar.agents.llm import (
+    build_chat_llm,
+    message_text,
+    resolve_llm_config,
+    run_llm_operation,
+)
 from biradar.observability.logging import get_logger
 from biradar.utils.prompts import load_prompt, robust_json_parse
 
@@ -31,9 +37,9 @@ class RiskReviewResult(BaseModel):
 
 
 def review_candidate_risk(
-    candidate_data: dict[str, Any],
-    extraction_data: dict[str, Any],
-    enrichment_data: dict[str, Any],
+    candidate_data: Mapping[str, Any],
+    extraction_data: Mapping[str, Any],
+    enrichment_data: Mapping[str, Any],
     draft_thesis: str,
 ) -> RiskReviewResult:
     """
@@ -72,7 +78,7 @@ def review_candidate_risk(
 
     def _invoke() -> RiskReviewResult:
         response = llm.invoke(full_prompt.format(context=review_context))
-        content = response.content if hasattr(response, "content") else str(response)
+        content = message_text(response)
         parsed = robust_json_parse(content)
         return RiskReviewResult(**parsed)
 

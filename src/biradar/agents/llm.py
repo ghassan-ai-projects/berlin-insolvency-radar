@@ -102,6 +102,31 @@ def build_chat_llm() -> ChatOpenAI:
     return ChatOpenAI(**kwargs)
 
 
+def message_text(response: Any) -> str:
+    """Flatten a LangChain message payload into plain text.
+
+    ``BaseMessage.content`` is ``str | list[str | dict]``. The list form appears
+    for content-block responses, where naive ``str()`` would yield a Python repr
+    that no JSON parser can read. Text blocks are concatenated instead.
+    """
+    content = getattr(response, "content", None)
+    if content is None:
+        return str(response)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return str(content)
+
+
 def classify_llm_exception(exc: Exception, error_prefix: str) -> str:
     """Classify an LLM failure into a stable runtime error code."""
     message = str(exc).lower()

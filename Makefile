@@ -1,4 +1,4 @@
-.PHONY: check verify format format-check lint typecheck test test-integration test-acceptance test-e2e pre-commit clean
+.PHONY: check verify format format-check lint typecheck test test-integration test-acceptance test-e2e coverage audit pre-commit clean
 
 # Conditional so CI can inherit the cache directory exported by astral-sh/setup-uv
 # instead of writing to a repo-local cache the runner never restores.
@@ -36,7 +36,15 @@ test-acceptance:
 test-e2e:
 	$(UV_RUN) pytest tests/e2e -m "not live" --cov=src/biradar --cov-report=term-missing --timeout=60
 
+# Audits the locked runtime dependency set. pip-audit runs via uvx so it stays
+# out of the project's dependency tree.
+audit:
+	uv export --format requirements-txt --no-emit-project --no-dev -q -o .audit-requirements.txt
+	uvx pip-audit -r .audit-requirements.txt --disable-pip
+	rm -f .audit-requirements.txt
+
 clean:
+	rm -f .audit-requirements.txt
 	rm -rf .pytest_cache
 	rm -rf .coverage
 	rm -rf htmlcov

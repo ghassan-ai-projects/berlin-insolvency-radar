@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 
 from biradar.sources.enrichment.registry import register_enrichment_source
 from biradar.sources.enrichment.runtime import _get_client
+from biradar.utils.html import attr_str
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def lookup_north_data(company_name: str) -> dict[str, Any] | None:
 
         detail_href = None
         for link in search_soup.find_all("a", href=True):
-            href = link.get("href")
+            href = attr_str(link, "href")
             if href is None:
                 continue
             if not href.startswith("/") or href.startswith("/_"):

@@ -2,7 +2,12 @@
 
 from pydantic import BaseModel, Field
 
-from biradar.agents.llm import build_chat_llm, resolve_llm_config, run_llm_operation
+from biradar.agents.llm import (
+    build_chat_llm,
+    message_text,
+    resolve_llm_config,
+    run_llm_operation,
+)
 from biradar.observability.logging import get_logger
 from biradar.utils.prompts import load_prompt, robust_json_parse
 
@@ -48,7 +53,7 @@ def extract_filing_facts(raw_text: str, source_url: str) -> ExtractionResult:
 
     def _invoke() -> ExtractionResult:
         response = llm.invoke(full_prompt.format(text=raw_text, source_url=source_url))
-        content = response.content if hasattr(response, "content") else str(response)
+        content = message_text(response)
         parsed = robust_json_parse(content)
         if "evidence_snippets" in parsed and isinstance(
             parsed["evidence_snippets"], dict

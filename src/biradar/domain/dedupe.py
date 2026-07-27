@@ -1,6 +1,7 @@
 """Deterministic deduplication logic for candidates."""
 
 import hashlib
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 
@@ -31,19 +32,25 @@ def compute_dedupe_key(
     return f"dedupe_{hashlib.sha256(composite.encode('utf-8')).hexdigest()[:16]}"
 
 
-def deduplicate_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def deduplicate_candidates(
+    candidates: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     """
     Deterministic deduplication of candidate records.
 
     Groups candidates by dedupe key and keeps the first valid corporate record.
     Others are marked as 'duplicate'.
+
+    Pure: the input dicts are never mutated. Each returned record is a new dict,
+    matching the zero-side-effects rule for `domain/` and the `{**state}` copy
+    convention used by the LangGraph nodes that call this.
     """
     seen_keys: dict[str, str] = {}
     deduped_candidates = []
 
     for candidate in candidates:
         if candidate.get("status") == "quarantined":
-            deduped_candidates.append(candidate)
+            deduped_candidates.append({**candidate})
             continue
 
         key = compute_dedupe_key(
@@ -55,16 +62,24 @@ def deduplicate_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, A
 
         if key in seen_keys:
             # Mark as duplicate, link to canonical
-            candidate["status"] = "duplicate"
-            candidate["canonical_candidate_id"] = seen_keys[key]
+            deduped_candidates.append(
+                {
+                    **candidate,
+                    "status": "duplicate",
+                    "canonical_candidate_id": seen_keys[key],
+                }
+            )
         else:
             # First time seeing this key, mark as canonical
             seen_keys[key] = candidate.get(
                 "candidate_id", key.replace("dedupe_", "cand_")
             )
-            candidate["candidate_id"] = seen_keys[key]
-            candidate["status"] = "deduped_candidate"
-
-        deduped_candidates.append(candidate)
+            deduped_candidates.append(
+                {
+                    **candidate,
+                    "candidate_id": seen_keys[key],
+                    "status": "deduped_candidate",
+                }
+            )
 
     return deduped_candidates
