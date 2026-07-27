@@ -40,6 +40,9 @@ pip-delete-this-directory.txt
 # Dependency audit scratch file (make audit)
 .audit-requirements.txt
 
+# Coverage report consumed by scripts/check_coverage.py (make coverage)
+coverage.json
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

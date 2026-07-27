@@ -115,7 +115,9 @@ Use the commands that actually exist in this repo:
 - `make test-acceptance` — acceptance tests with coverage
 - `make test-e2e` — E2E tests (excludes `@pytest.mark.live`)
 - `make pre-commit` — `pre-commit run --all-files --show-diff-on-failure`
-- `make check` — `pre-commit format-check lint typecheck test test-acceptance test-e2e`
+- `make coverage` — combined run across all three suites, then per-layer target enforcement
+- `make audit` — `pip-audit` over the locked runtime dependency set
+- `make check` — `pre-commit format-check lint typecheck test test-acceptance test-e2e coverage audit`
 
 `make check` is a superset of CI. CI invokes these same Make targets, so the two
 cannot drift; do not add a step to the workflow without adding it here too.
@@ -135,14 +137,23 @@ Requirements:
 - `make test` must pass before a production-code change is considered complete.
 - Modified packages must show non-zero coverage.
 
-Coverage targets by layer:
+Coverage targets by layer (enforced by `make coverage`):
 
 - `domain/` — 95%+
 - `agents/`, `output/` — 50%+ (LLM-dependent modules; mock coverage)
 - `services/` — 85%+
 - `storage/` — 70%+
 - `graph/` — 75%+
-- `mcp/`, `cli/` — best effort
+- `mcp/`, `cli/` — best effort (reported, not enforced)
+
+These are enforced by `scripts/check_coverage.py`, which reads `coverage.json`
+and checks each layer separately — a single global `--cov-fail-under` would let
+a well-covered layer mask a bare one. The thresholds live in `LAYER_TARGETS` in
+that script; change them there and here together.
+
+Measure with `make coverage`, never a single suite. `make test` alone reports
+`services/` far below its real figure because acceptance and E2E cover much of
+that layer, and each suite's run overwrites `.coverage`.
 
 ## Repository Rules
 

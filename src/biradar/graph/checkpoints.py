@@ -1,5 +1,6 @@
 """Checkpointing for LangGraph workflows."""
 
+import sqlite3
 from pathlib import Path
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -8,12 +9,12 @@ from biradar.observability.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Only the third-party saver is optional. sqlite3 is stdlib and must stay
+# imported unconditionally — sharing a try block previously nulled it whenever
+# langgraph-checkpoint-sqlite was absent, disabling clear_thread as a side effect.
 try:
-    import sqlite3
-
     from langgraph.checkpoint.sqlite import SqliteSaver  # type: ignore[attr-defined]
 except ModuleNotFoundError:  # pragma: no cover - depends on installed extras
-    sqlite3 = None
     SqliteSaver = None
 
 
@@ -24,7 +25,7 @@ class CheckpointManager:
         self._conn = None
         self.db_path = None if db_path == ":memory:" else Path(db_path)
 
-        if SqliteSaver is not None and sqlite3 is not None and self.db_path is not None:
+        if SqliteSaver is not None and self.db_path is not None:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL;")
@@ -53,7 +54,7 @@ class CheckpointManager:
 
     def clear_thread(self, thread_id: str) -> None:
         """Clear checkpoint history for a specific thread."""
-        if self.db_path is None or sqlite3 is None:
+        if self.db_path is None:
             logger.info(
                 "Checkpoint clear requested with in-memory saver; nothing persisted",
                 extra={"thread_id": thread_id},

@@ -114,3 +114,8 @@ jobs:
 
       - name: E2E tests (excluding live)
         run: make test-e2e
+
+      # Re-runs the suites as one process; the per-suite steps above each
+      # overwrite .coverage, so only this run can be checked per layer.
+      - name: Per-layer coverage targets
+        run: make coverage

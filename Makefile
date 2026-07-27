@@ -7,7 +7,7 @@ UV_RUN=UV_CACHE_DIR=$(UV_CACHE_DIR) uv run
 
 # `verify` must stay a superset of what CI runs, or green locally means nothing.
 check: verify
-verify: pre-commit format-check lint typecheck test test-acceptance test-e2e
+verify: pre-commit format-check lint typecheck test test-acceptance test-e2e coverage audit
 
 pre-commit:
 	$(UV_RUN) pre-commit run --all-files --show-diff-on-failure
@@ -36,6 +36,13 @@ test-acceptance:
 test-e2e:
 	$(UV_RUN) pytest tests/e2e -m "not live" --cov=src/biradar --cov-report=term-missing --timeout=60
 
+# Single run across all three suites. The per-suite targets each overwrite
+# .coverage, so only a combined run can be checked against the layer targets.
+coverage:
+	$(UV_RUN) pytest tests/unit tests/acceptance tests/e2e -m "not live" \
+		--cov=src/biradar --cov-report=term-missing --cov-report=json --timeout=60
+	$(UV_RUN) python scripts/check_coverage.py
+
 # Audits the locked runtime dependency set. pip-audit runs via uvx so it stays
 # out of the project's dependency tree.
 audit:
@@ -44,7 +51,7 @@ audit:
 	rm -f .audit-requirements.txt
 
 clean:
-	rm -f .audit-requirements.txt
+	rm -f .audit-requirements.txt coverage.json
 	rm -rf .pytest_cache
 	rm -rf .coverage
 	rm -rf htmlcov
