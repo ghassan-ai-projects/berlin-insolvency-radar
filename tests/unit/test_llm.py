@@ -4,7 +4,11 @@ import os
 
 import pytest
 
-from biradar.agents.llm import DEFAULT_DEEPSEEK_BASE_URL, resolve_llm_config
+from biradar.agents.llm import (
+    DEFAULT_DEEPSEEK_BASE_URL,
+    build_chat_llm,
+    resolve_llm_config,
+)
 
 
 def test_resolve_llm_config_prefers_generic_provider_variables():
@@ -95,3 +99,26 @@ def test_resolve_llm_config_requires_model_for_generic_provider():
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
+
+
+def test_build_chat_llm_requests_json_object_response_format(monkeypatch):
+    """AGENTS.md requires JSON output mode; every agent parses the reply as JSON."""
+    monkeypatch.delenv("BIRADAR_LLM_API_KEY", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+
+    llm = build_chat_llm()
+
+    assert llm.model_kwargs["response_format"] == {"type": "json_object"}
+
+
+def test_build_chat_llm_applies_resolved_model_and_timeout(monkeypatch):
+    monkeypatch.setenv("BIRADAR_LLM_API_KEY", "generic-key")
+    monkeypatch.setenv("BIRADAR_LLM_MODEL", "gpt-test")
+    monkeypatch.setenv("BIRADAR_LLM_TIMEOUT_SECONDS", "12")
+    monkeypatch.setenv("BIRADAR_LLM_BASE_URL", "https://example.invalid/v1")
+
+    llm = build_chat_llm()
+
+    assert llm.model_name == "gpt-test"
+    assert llm.temperature == 0.0
+    assert llm.request_timeout == 12.0

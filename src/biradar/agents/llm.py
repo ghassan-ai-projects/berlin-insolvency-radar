@@ -82,13 +82,20 @@ def resolve_llm_config() -> LLMRuntimeConfig:
 
 
 def build_chat_llm() -> ChatOpenAI:
-    """Build the shared chat client for all agent calls."""
+    """Build the shared chat client for all agent calls.
+
+    Every agent in this codebase parses the response as JSON, so JSON output mode
+    is requested at the API level rather than relying on prompt instructions plus
+    the ``robust_json_parse`` fallback. Callers must keep the word "JSON" in the
+    prompt, which DeepSeek requires when this mode is set.
+    """
     config = resolve_llm_config()
     kwargs: dict[str, Any] = {
         "openai_api_key": config.api_key,
         "model": config.model,
         "temperature": 0.0,
         "timeout": config.timeout_seconds,
+        "model_kwargs": {"response_format": {"type": "json_object"}},
     }
     if config.base_url:
         kwargs["openai_api_base"] = config.base_url
