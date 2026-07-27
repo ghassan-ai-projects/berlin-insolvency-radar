@@ -107,9 +107,13 @@ cli/  →  mcp/  →  services/  →  graph/  →  agents/  →  domain/
 
 Use the commands that actually exist in this repo:
 
-- `make format` — `ruff format src/biradar tests`
-- `make format-check` — `ruff format --check src/biradar tests`
-- `make lint` — `ruff check src/biradar tests`
+- `make format` — `ruff format src/biradar tests scripts`
+- `make format-check` — `ruff format --check src/biradar tests scripts`
+- `make lint` — `ruff check src/biradar tests scripts`
+
+These paths (`PY_PATHS` in the Makefile) must stay equal to what the pre-commit
+ruff hooks see. Scoping them narrower is how `scripts/` drifted out of format
+and broke CI while `make check` stayed green.
 - `make typecheck` — `pyright src/biradar`
 - `make test` — unit tests with coverage
 - `make test-acceptance` — acceptance tests with coverage

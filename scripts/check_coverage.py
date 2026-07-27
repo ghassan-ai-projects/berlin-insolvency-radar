@@ -89,9 +89,7 @@ def main(argv: list[str]) -> int:
         print(f"  {layer + '/':<{width + 1}}  {pct:6.1f}%   {note}")
 
     missing = [
-        layer
-        for layer in LAYER_TARGETS
-        if layer not in totals or totals[layer][1] == 0
+        layer for layer in LAYER_TARGETS if layer not in totals or totals[layer][1] == 0
     ]
     if missing:
         failures.append(

@@ -5,6 +5,10 @@
 UV_CACHE_DIR ?= .uv-cache
 UV_RUN=UV_CACHE_DIR=$(UV_CACHE_DIR) uv run
 
+# Must match what the pre-commit ruff hooks see (every tracked .py file).
+# Scoping these narrower than pre-commit is how scripts/ drifted out of format.
+PY_PATHS=src/biradar tests scripts
+
 # `verify` must stay a superset of what CI runs, or green locally means nothing.
 check: verify
 verify: pre-commit format-check lint typecheck test test-acceptance test-e2e coverage audit
@@ -13,13 +17,13 @@ pre-commit:
 	$(UV_RUN) pre-commit run --all-files --show-diff-on-failure
 
 format:
-	$(UV_RUN) ruff format src/biradar tests
+	$(UV_RUN) ruff format $(PY_PATHS)
 
 format-check:
-	$(UV_RUN) ruff format --check src/biradar tests
+	$(UV_RUN) ruff format --check $(PY_PATHS)
 
 lint:
-	$(UV_RUN) ruff check src/biradar tests
+	$(UV_RUN) ruff check $(PY_PATHS)
 
 typecheck:
 	$(UV_RUN) pyright src/biradar
