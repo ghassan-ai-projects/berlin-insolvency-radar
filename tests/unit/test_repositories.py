@@ -225,6 +225,20 @@ def test_list_runs_orders_most_recent_first_and_honours_limit(db):
     assert [row["source_run_id"] for row in rows] == ["run_second"]
 
 
+def test_find_raw_ids_with_candidates_returns_only_linked_raw_record_ids(db):
+    repo = CandidateRepository(db)
+    repo.upsert_candidate(
+        "cand_1", "Firm A", "GmbH", None, None, None, None, None, "raw_candidate"
+    )
+    repo.link_to_raw(
+        "cand_1", "raw_linked", match_confidence=1.0, match_reason="pipeline_ingest"
+    )
+
+    linked = repo.find_raw_ids_with_candidates(["raw_linked", "raw_unlinked"])
+
+    assert linked == ["raw_linked"]
+
+
 def test_complete_run_marks_the_run_failed_when_an_error_is_present(db):
     runs = SourceRunRepository(db)
     runs.create_run("run_broken", "portal", "full")

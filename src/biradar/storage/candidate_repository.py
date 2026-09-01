@@ -154,3 +154,14 @@ class CandidateRepository(BaseRepository):
             """,
             [candidate_id, raw_record_id, match_confidence, match_reason],
         )
+
+    def find_raw_ids_with_candidates(self, raw_ids: list[str]) -> list[str]:
+        """Return the raw record IDs that already have a linked candidate."""
+        if not raw_ids:
+            return []
+        placeholders = ",".join("?" * len(raw_ids))
+        rows = self.db.conn.execute(
+            f"SELECT DISTINCT raw_record_id FROM candidate_sources WHERE raw_record_id IN ({placeholders})",
+            raw_ids,
+        ).fetchall()
+        return [row[0] for row in rows]
