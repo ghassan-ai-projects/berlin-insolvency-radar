@@ -663,3 +663,14 @@ def test_at_1_12_health_reports_real_work_remaining(container):
         or "approve" in next_action_lower
         or "score" in next_action_lower
     )
+
+
+def test_import_returns_file_not_found_envelope_for_missing_legacy_db(container):
+    """A missing legacy file is rejected before any audit event or run."""
+    params = LegacyImportInput(legacy_db_path="/nonexistent/legacy.duckdb")
+
+    result = container.legacy_import.import_legacy_scout(params)
+
+    assert result.ok is False
+    assert result.errors[0]["code"] == "FILE_NOT_FOUND"
+    assert result.audit_id is None
