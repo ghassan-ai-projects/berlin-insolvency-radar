@@ -15,7 +15,7 @@ Rules for this task:
 ## Bar
 
 ```
-[████████████████████░░░░░░░░░░]  6 / 11  files over the 250-line cap processed
+[███████████████████████░░░░░░░]  7 / 11  files over the 250-line cap processed
 ```
 
 Coverage floor raised to >90% per layer mid-task (user decision). Layer status at
@@ -31,7 +31,7 @@ services 92.3%, observability 100% — total 97%.
 | 4 | `src/biradar/sources/official_portal.py` | 572 | done (572 → 9 modules + facade, max 158 lines) |
 | 5 | `src/biradar/services/import_legacy.py` | 399 | done (399 → 9 modules + facade + storage/legacy_reader.py, max 231 lines; services 95.4%) |
 | 6 | `src/biradar/services/issues.py` | 382 | done (382 → 7 modules + facade, max 158 lines; traversal-guard test added; services 95.7%) |
-| 7 | `src/biradar/services/reviews.py` | 282 | pending |
+| 7 | `src/biradar/services/reviews.py` | 282 | done (282 → 5 modules + facade, max 172 lines; new unit tests, reviews 100% coverage; services 96.8%) |
 | 8 | `src/biradar/storage/db.py` | 269 | pending |
 | 9 | `src/biradar/mcp/server.py` | 262 | pending |
 | 10 | `src/biradar/sources/enrichment/unternehmensregister.py` | 253 | pending |
