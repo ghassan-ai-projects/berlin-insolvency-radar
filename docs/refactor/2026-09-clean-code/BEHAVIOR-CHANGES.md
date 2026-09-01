@@ -57,3 +57,16 @@ refactor alone is not enough, and whether it was applied or deferred.
     delays apply even when a stub config says 0.0).
 16. `sources/enrichment/north_data.py`: the `count("/") < 2` link filter also
     excludes legitimate one-segment company detail pages.
+
+### From the services/issues.py split (deferred)
+
+17. `services/issues.py` (now `issues/exporting.py`): the path-traversal guard is
+    a naive `str(export_path).startswith(str(export_dir.resolve()))` prefix
+    check — a sibling directory such as `exports2/` passes the guard. Locked in
+    byte-identical form by `test_export_rejects_path_that_escapes_export_directory`;
+    a proper fix is `Path.relative_to()` / `os.path.commonpath`, which changes
+    acceptance behavior for adversarial `week` values.
+18. `services/issues.py` (now `issues/exporting.py`): the path-escape failure is
+    the only failure path that logs no audit event (every other failure writes
+    `issue_export_failed`). Preserved as-is; adding the audit event would be a
+    behavior change with zero test impact.

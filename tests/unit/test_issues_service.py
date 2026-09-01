@@ -205,6 +205,21 @@ def test_export_writes_markdown_file_and_hash(service):
     assert result.data["sha256"]
 
 
+def test_export_rejects_path_that_escapes_export_directory(service):
+    """The traversal guard refuses filenames that escape the export dir."""
+    _publishable_candidate(service)
+    escaped = service.create_issue_draft(
+        week="../../../../pwned", tier="paid", candidate_ids=["c1"], title="t"
+    )
+
+    result = service.export_issue(issue_id=escaped.data["issue_id"])
+
+    assert not result.ok
+    assert result.errors[0]["code"] == "EXPORT_FAILED"
+    assert result.errors[0]["message"] == "Export path escapes export directory."
+    assert result.audit_id is None
+
+
 def test_export_is_rejected_for_an_already_exported_issue(service):
     _publishable_candidate(service)
     issue_id = _draft(service).data["issue_id"]
