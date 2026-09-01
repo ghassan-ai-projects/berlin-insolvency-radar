@@ -141,14 +141,16 @@ Requirements:
 - `make test` must pass before a production-code change is considered complete.
 - Modified packages must show non-zero coverage.
 
-Coverage targets by layer (enforced by `make coverage`):
+Coverage targets by layer (enforced by `make coverage`; every layer >90%,
+`domain/` keeps its stricter bar):
 
 - `domain/` — 95%+
-- `agents/`, `output/` — 50%+ (LLM-dependent modules; mock coverage)
-- `services/` — 85%+
-- `storage/` — 70%+
-- `graph/` — 75%+
-- `mcp/`, `cli/` — best effort (reported, not enforced)
+- all other layers (`agents/`, `cli/`, `config/`, `graph/`, `mcp/`, `observability/`,
+  `output/`, `services/`, `sources/`, `storage/`, `utils/`) — 90%+
+
+LLM-dependent and transport modules reach this with mocked/stubbed coverage —
+see `tests/unit/test_enrichment_sources.py` and `tests/unit/test_cli.py` for the
+established offline faking patterns.
 
 These are enforced by `scripts/check_coverage.py`, which reads `coverage.json`
 and checks each layer separately — a single global `--cov-fail-under` would let
