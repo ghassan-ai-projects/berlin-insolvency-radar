@@ -15,7 +15,7 @@ Rules for this task:
 ## Bar
 
 ```
-[██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  1 / 11  files over the 250-line cap processed
+[█████░░░░░░░░░░░░░░░░░░░░░░░░░]  2 / 11  files over the 250-line cap processed
 ```
 
 Coverage floor raised to >90% per layer mid-task (user decision). Layer status at
@@ -26,7 +26,7 @@ services 92.3%, observability 100% — total 97%.
 | # | File | Lines | Status |
 |---|------|------:|--------|
 | 1 | `src/biradar/storage/repository.py` | 907 | done (907 → 11 modules + facade, storage coverage 99.4%) |
-| 2 | `src/biradar/services/pipeline.py` | 714 | pending |
+| 2 | `src/biradar/services/pipeline.py` | 714 | done (714 → 9 modules + facade, max 195 lines) |
 | 3 | `src/biradar/graph/pipeline_workflow.py` | 626 | pending |
 | 4 | `src/biradar/sources/official_portal.py` | 572 | pending |
 | 5 | `src/biradar/services/import_legacy.py` | 399 | pending |
