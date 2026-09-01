@@ -17,7 +17,7 @@ Layer 1 (Infra):     config/  ,  observability/  ,  storage/{db,repository}
 
 - Dependencies flow top-down only. No circular imports.
 - `domain/` modules are pure functions with zero I/O and zero side effects.
-- All SQL lives in `storage/repository.py`. No raw SQL outside `storage/`.
+- All SQL lives in the `storage/` package (`repository.py` re-exports the repository classes). No raw SQL outside `storage/`.
 - All services return `ResultEnvelope[T]` from `mcp/envelope.py`.
 - DI via `AppContainer` (see `services/container.py`). Entry points compose from this root.
 
