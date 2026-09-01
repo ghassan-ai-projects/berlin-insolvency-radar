@@ -15,12 +15,17 @@ Rules for this task:
 ## Bar
 
 ```
-[██████████████████████████████]  0 / 11  files over the 250-line cap processed
+[██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  1 / 11  files over the 250-line cap processed
 ```
+
+Coverage floor raised to >90% per layer mid-task (user decision). Layer status at
+enforcement time: storage 99.4%, cli 98.3%, config 100%, utils 100%, sources 100%
+(95 new tests), agents 96.3%, domain 98.1%, graph 93.5%, mcp 94.3%, output 98.7%,
+services 92.3%, observability 100% — total 97%.
 
 | # | File | Lines | Status |
 |---|------|------:|--------|
-| 1 | `src/biradar/storage/repository.py` | 907 | pending |
+| 1 | `src/biradar/storage/repository.py` | 907 | done (907 → 11 modules + facade, storage coverage 99.4%) |
 | 2 | `src/biradar/services/pipeline.py` | 714 | pending |
 | 3 | `src/biradar/graph/pipeline_workflow.py` | 626 | pending |
 | 4 | `src/biradar/sources/official_portal.py` | 572 | pending |
