@@ -45,7 +45,7 @@ All dependencies flow top-down. No circular imports.
 
 ### Layer 5: Entry Points
 - `cli/main.py` — CLI argument parsing and command dispatch.
-- `mcp/server.py` — MCP stdio server with 10 tools, Pydantic-validated inputs, and generic error responses.
+- `mcp/server/` — MCP server package (specs, handlers, dispatch, runtime) with 10 tools, Pydantic-validated inputs, and generic error responses.
 
 ## Key Design Decisions
 
