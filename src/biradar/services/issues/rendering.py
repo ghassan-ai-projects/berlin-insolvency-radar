@@ -6,8 +6,8 @@ _CATEGORY_EMOJI = {"hot": "🔥", "solid": "✅"}
 _DISCLAIMER_LINES = [
     "---",
     "**Disclaimer:** This newsletter is for informational purposes only and "
-    "does not constitute financial or investment advice. All data is sourced "
-    "from public registers.",
+    + "does not constitute financial or investment advice. All data is sourced "
+    + "from public registers.",
 ]
 
 
