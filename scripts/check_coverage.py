@@ -33,7 +33,7 @@ LAYER_TARGETS: dict[str, float] = {
 }
 
 # Layers measured but not enforced (currently none — all layers have targets).
-UNENFORCED_LAYERS: tuple[str, ...] = ()
+_unused_unenforced_layers: tuple[str, ...] = ()
 
 
 def layer_of(path: str) -> str | None:
