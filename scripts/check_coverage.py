@@ -16,18 +16,24 @@ import sys
 from pathlib import Path
 
 # Targets from AGENTS.md "Coverage targets by layer". Keep the two in sync.
+# Every layer is held to >90% (domain keeps its stricter 95%).
 LAYER_TARGETS: dict[str, float] = {
     "domain": 95.0,
-    "services": 85.0,
-    "graph": 75.0,
-    "storage": 70.0,
-    "agents": 50.0,
-    "output": 50.0,
+    "services": 90.0,
+    "graph": 90.0,
+    "storage": 90.0,
+    "agents": 90.0,
+    "output": 90.0,
+    "mcp": 90.0,
+    "cli": 90.0,
+    "sources": 90.0,
+    "config": 90.0,
+    "observability": 90.0,
+    "utils": 90.0,
 }
 
-# Thin transport/entrypoint layers are "best effort" in AGENTS.md and are
-# reported without being enforced.
-UNENFORCED_LAYERS = ("mcp", "cli", "config", "observability", "sources", "utils")
+# Layers measured but not enforced (currently none — all layers have targets).
+_unused_unenforced_layers: tuple[str, ...] = ()
 
 
 def layer_of(path: str) -> str | None:

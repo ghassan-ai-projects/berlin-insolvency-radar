@@ -17,7 +17,7 @@ Layer 1 (Infra):     config/  ,  observability/  ,  storage/{db,repository}
 
 - Dependencies flow top-down only. No circular imports.
 - `domain/` modules are pure functions with zero I/O and zero side effects.
-- All SQL lives in `storage/repository.py`. No raw SQL outside `storage/`.
+- All SQL lives in the `storage/` package (`repository.py` re-exports the repository classes). No raw SQL outside `storage/`.
 - All services return `ResultEnvelope[T]` from `mcp/envelope.py`.
 - DI via `AppContainer` (see `services/container.py`). Entry points compose from this root.
 
@@ -27,7 +27,7 @@ Layer 1 (Infra):     config/  ,  observability/  ,  storage/{db,repository}
 - **Typing:** All function signatures are typed. Use `dict[str, Any]` for untyped dicts, Pydantic for structured data.
 - **IDs:** UUID prefixes follow a convention: `run_`, `cand_`, `raw_`, `ev_`, `score_`, `rev_`, `issue_`, `audit_`.
 - **State mutation in LangGraph nodes:** Always return a shallow copy `{**state}` rather than the mutated reference.
-- **Error handling:** Services return `ResultEnvelope(ok=False, errors=[...])` — never raise exceptions across MCP boundaries. The catch-all in `mcp/server.py` returns a generic message; log details server-side.
+- **Error handling:** Services return `ResultEnvelope(ok=False, errors=[...])` — never raise exceptions across MCP boundaries. The catch-all in `mcp/server/api.py` returns a generic message; log details server-side.
 - **LLM calls:** Always use explicit `model_kwargs={"response_format": {"type": "json_object"}}` for DeepSeek. Wrap injected data in XML delimiters (`<raw_notice>`, `<candidate_data>`, etc.) with instructions to treat data as data.
 
 ## Tests

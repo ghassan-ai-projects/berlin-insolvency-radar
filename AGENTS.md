@@ -99,7 +99,7 @@ cli/  →  mcp/  →  services/  →  graph/  →  agents/  →  domain/
 
 - Imports flow downward only. No circular dependencies.
 - `domain/` modules have zero internal dependencies and zero side effects.
-- All SQL lives in `storage/repository.py`. No raw SQL outside `storage/`.
+- All SQL lives in the `storage/` package (`repository.py` re-exports the repository classes). No raw SQL outside `storage/`.
 - All services return `ResultEnvelope[T]` from `mcp/envelope.py`.
 - DI via `AppContainer` (see `services/container.py`).
 
@@ -141,14 +141,16 @@ Requirements:
 - `make test` must pass before a production-code change is considered complete.
 - Modified packages must show non-zero coverage.
 
-Coverage targets by layer (enforced by `make coverage`):
+Coverage targets by layer (enforced by `make coverage`; every layer >90%,
+`domain/` keeps its stricter bar):
 
 - `domain/` — 95%+
-- `agents/`, `output/` — 50%+ (LLM-dependent modules; mock coverage)
-- `services/` — 85%+
-- `storage/` — 70%+
-- `graph/` — 75%+
-- `mcp/`, `cli/` — best effort (reported, not enforced)
+- all other layers (`agents/`, `cli/`, `config/`, `graph/`, `mcp/`, `observability/`,
+  `output/`, `services/`, `sources/`, `storage/`, `utils/`) — 90%+
+
+LLM-dependent and transport modules reach this with mocked/stubbed coverage —
+see `tests/unit/test_enrichment_sources.py` and `tests/unit/test_cli.py` for the
+established offline faking patterns.
 
 These are enforced by `scripts/check_coverage.py`, which reads `coverage.json`
 and checks each layer separately — a single global `--cov-fail-under` would let
@@ -164,7 +166,7 @@ that layer, and each suite's run overwrites `.coverage`.
 - Use `logging.getLogger(__name__)` for all modules.
 - Use DuckDB parameterized queries (`?` placeholders) — never string interpolation.
 - Do not modify an existing database migration; add a new migration instead.
-- Keep all SQL in `storage/repository.py` and `storage/db.py`.
+- Keep all SQL in the `storage/` package.
 - LangGraph nodes must return new dict copies (`{**state}`), not mutated references.
 - LLM calls must use `model_kwargs={"response_format": {"type": "json_object"}}` for DeepSeek.
 - Wrap injected data in XML delimiters for prompt injection defense.

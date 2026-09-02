@@ -48,3 +48,25 @@ def test_call_radar_tool_validates_against_registered_schema():
 
     assert result.ok is False
     assert result.errors[0]["code"] == "VALIDATION_ERROR"
+
+
+def test_call_radar_tool_returns_generic_error_when_handler_raises():
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("secret internals")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        container = AppContainer(
+            Path(__file__).parent.parent.parent / "config",
+            Path(tmpdir) / "mcp_server_internal.duckdb",
+        )
+        try:
+            container.health.check = _raise
+            result = call_radar_tool(container, "radar_health", {})
+        finally:
+            container.close()
+
+    assert result.ok is False
+    assert result.errors[0]["code"] == "INTERNAL_ERROR"
+    assert result.errors[0]["message"] == "An internal error occurred."
+    assert result.errors[0]["retryable"] is True
+    assert "secret internals" not in str(result.model_dump())

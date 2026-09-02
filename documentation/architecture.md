@@ -25,7 +25,7 @@ All dependencies flow top-down. No circular imports.
 - `config/` — Typed configuration loading via Pydantic. `Settings` (project root, data dir) and `AppConfig` (scoring weights, source adapters).
 - `observability/` — Structured logging with `logging.getLogger(__name__)`.
 - `storage/db.py` — DuckDB connection and schema migrations.
-- `storage/repository.py` — 8 repository classes centralizing all SQL. No raw SQL outside this file.
+- `storage/repository.py` — Facade re-exporting the repository classes, which live in per-concern modules (`storage/*_repository.py`) and centralize all SQL. No raw SQL outside the `storage/` package.
 
 ### Layer 2: Adapters
 - `agents/` — LLM wrappers (DeepSeek). Extraction and risk review agents with JSON mode and fail-closed behavior.
@@ -45,7 +45,7 @@ All dependencies flow top-down. No circular imports.
 
 ### Layer 5: Entry Points
 - `cli/main.py` — CLI argument parsing and command dispatch.
-- `mcp/server.py` — MCP stdio server with 10 tools, Pydantic-validated inputs, and generic error responses.
+- `mcp/server/` — MCP server package (specs, handlers, dispatch, runtime) with 10 tools, Pydantic-validated inputs, and generic error responses.
 
 ## Key Design Decisions
 

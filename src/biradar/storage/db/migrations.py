@@ -1,67 +1,21 @@
-"""Database connection and initialization for biradar."""
+"""Schema migrations: ordered DDL applied by the migration runner.
 
-import hashlib
-from pathlib import Path
+The SQL literals are frozen — AGENTS.md forbids modifying an existing
+migration; add a new entry to ``MIGRATIONS`` instead. The DDL text is
+preserved byte-identically (including indentation) from the original
+``storage/db.py``.
+"""
+
+from collections.abc import Callable
 
 import duckdb
 
-MIGRATION_SEQUENCE = (
-    "001_core_tables",
-    "002_audit_table",
-    "003_enrichments",
-    "004_enrichment_claims",
-)
-LATEST_SCHEMA_VERSION = MIGRATION_SEQUENCE[-1]
+MigrationFn = Callable[[duckdb.DuckDBPyConnection], None]
 
 
-class Database:
-    """Manages the DuckDB connection and schema initialization."""
-
-    def __init__(self, db_path: str | Path):
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = duckdb.connect(str(self.db_path))
-
-    def close(self) -> None:
-        self.conn.close()
-
-    def begin(self) -> None:
-        self.conn.execute("BEGIN TRANSACTION")
-
-    def commit(self) -> None:
-        self.conn.execute("COMMIT")
-
-    def rollback(self) -> None:
-        self.conn.execute("ROLLBACK")
-
-    def run_migrations(self) -> None:
-        """Run database schema migrations."""
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                migration_name VARCHAR PRIMARY KEY,
-                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-        migrations = [
-            (MIGRATION_SEQUENCE[0], self._create_core_tables),
-            (MIGRATION_SEQUENCE[1], self._create_audit_table),
-            (MIGRATION_SEQUENCE[2], self._create_enrichments_table),
-            (MIGRATION_SEQUENCE[3], self._create_enrichment_claims_table),
-        ]
-
-        for name, migration_fn in migrations:
-            cursor = self.conn.execute(
-                "SELECT 1 FROM schema_migrations WHERE migration_name = ?", [name]
-            )
-            if cursor.fetchone() is None:
-                migration_fn()
-                self.conn.execute(
-                    "INSERT INTO schema_migrations (migration_name) VALUES (?)", [name]
-                )
-
-    def _create_core_tables(self) -> None:
-        self.conn.execute("""
+def create_core_tables(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create the ten core pipeline tables in one DDL batch."""
+    conn.execute("""
             CREATE TABLE IF NOT EXISTS source_providers (
                 source_id VARCHAR PRIMARY KEY,
                 name VARCHAR NOT NULL,
@@ -191,8 +145,10 @@ class Database:
             );
         """)
 
-    def _create_audit_table(self) -> None:
-        self.conn.execute("""
+
+def create_audit_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create the audit event log table."""
+    conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_events (
                 audit_id VARCHAR PRIMARY KEY,
                 actor VARCHAR NOT NULL,
@@ -205,8 +161,10 @@ class Database:
             );
         """)
 
-    def _create_enrichments_table(self) -> None:
-        self.conn.execute("""
+
+def create_enrichments_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create the enrichment results table."""
+    conn.execute("""
             CREATE TABLE IF NOT EXISTS enrichments (
                 id VARCHAR PRIMARY KEY,
                 candidate_id VARCHAR NOT NULL,
@@ -223,8 +181,10 @@ class Database:
             );
         """)
 
-    def _create_enrichment_claims_table(self) -> None:
-        self.conn.execute("""
+
+def create_enrichment_claims_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create the enrichment claims table."""
+    conn.execute("""
             CREATE TABLE IF NOT EXISTS enrichment_claims (
                 claim_id VARCHAR PRIMARY KEY,
                 candidate_id VARCHAR NOT NULL,
@@ -241,29 +201,13 @@ class Database:
             );
         """)
 
-    def get_schema_version(self) -> str:
-        cursor = self.conn.execute(
-            "SELECT migration_name FROM schema_migrations ORDER BY migration_name DESC LIMIT 1"
-        )
-        row = cursor.fetchone()
-        return row[0] if row else "unmigrated"
 
+MIGRATIONS: tuple[tuple[str, MigrationFn], ...] = (
+    ("001_core_tables", create_core_tables),
+    ("002_audit_table", create_audit_table),
+    ("003_enrichments", create_enrichments_table),
+    ("004_enrichment_claims", create_enrichment_claims_table),
+)
 
-def scalar_count(conn: duckdb.DuckDBPyConnection, sql: str) -> int:
-    """Run an aggregate query and return its single scalar result.
-
-    ``fetchone()`` is typed as Optional, which is correct in general but never
-    the case for an aggregate. This narrows the type once here instead of
-    suppressing reportOptionalSubscript across the codebase.
-    """
-    row = conn.execute(sql).fetchone()
-    if row is None:
-        raise RuntimeError(f"Aggregate query returned no row: {sql}")
-    return int(row[0])
-
-
-def compute_content_hash(data: str | bytes) -> str:
-    """Compute SHA-256 hash of string or bytes."""
-    if isinstance(data, str):
-        data = data.encode("utf-8")
-    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+MIGRATION_SEQUENCE: tuple[str, ...] = tuple(name for name, _fn in MIGRATIONS)
+LATEST_SCHEMA_VERSION = MIGRATION_SEQUENCE[-1]

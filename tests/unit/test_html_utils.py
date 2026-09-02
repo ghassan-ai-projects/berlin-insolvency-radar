@@ -28,6 +28,11 @@ def test_attr_str_joins_multi_valued_attribute():
     assert attr_str(_tag('<div class="a b">t</div>'), "class") == "a b"
 
 
+def test_attr_str_stringifies_unexpected_attribute_types():
+    """Non-string, non-list values (e.g. numeric attrs) still become text."""
+    assert attr_str(_tag('<div data-count="5">t</div>'), "data-count") == "5"
+
+
 def test_attr_str_result_supports_string_operations():
     """The whole point: the return value is safe to call str methods on."""
     value = attr_str(_tag('<div class="a b">t</div>'), "class")
